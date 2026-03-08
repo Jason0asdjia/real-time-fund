@@ -24,9 +24,17 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { throttle } from 'lodash';
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
 import FitText from './FitText';
+import FundCard from './FundCard';
 import MobileSettingModal from './MobileSettingModal';
-import { ExitIcon, SettingsIcon, StarIcon } from './Icons';
+import { CloseIcon, ExitIcon, SettingsIcon, StarIcon } from './Icons';
 
 const MOBILE_NON_FROZEN_COLUMN_IDS = [
   'yesterdayChangePercent',
@@ -95,6 +103,7 @@ function SortableRow({ row, children, isTableDragging, disabled }) {
  * @param {boolean} [props.refreshing] - 是否刷新中
  * @param {string} [props.sortBy] - 排序方式，'default' 时长按行触发拖拽排序
  * @param {(oldIndex: number, newIndex: number) => void} [props.onReorder] - 拖拽排序回调
+ * @param {(row: any) => Object} [props.getFundCardProps] - 给定行返回 FundCard 的 props；传入后点击基金名称将用底部弹框展示卡片视图
  */
 export default function MobileFundTable({
   data = [],
@@ -110,6 +119,9 @@ export default function MobileFundTable({
   onReorder,
   onCustomSettingsChange,
   stickyTop = 0,
+  getFundCardProps,
+  blockDrawerClose = false,
+  closeDrawerRef,
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -119,10 +131,18 @@ export default function MobileFundTable({
   );
 
   const [activeId, setActiveId] = useState(null);
+  const ignoreNextDrawerCloseRef = useRef(false);
 
   const onToggleFavoriteRef = useRef(onToggleFavorite);
   const onRemoveFromGroupRef = useRef(onRemoveFromGroup);
   const onHoldingAmountClickRef = useRef(onHoldingAmountClick);
+
+  useEffect(() => {
+    if (closeDrawerRef) {
+      closeDrawerRef.current = () => setCardSheetRow(null);
+      return () => { closeDrawerRef.current = null; };
+    }
+  }, [closeDrawerRef]);
 
   useEffect(() => {
     onToggleFavoriteRef.current = onToggleFavorite;
@@ -277,6 +297,7 @@ export default function MobileFundTable({
   };
 
   const [settingModalOpen, setSettingModalOpen] = useState(false);
+  const [cardSheetRow, setCardSheetRow] = useState(null);
   const tableContainerRef = useRef(null);
   const portalHeaderRef = useRef(null);
   const [tableContainerWidth, setTableContainerWidth] = useState(0);
@@ -420,8 +441,8 @@ export default function MobileFundTable({
     setMobileColumnVisibility((prev = {}) => ({ ...prev, [columnId]: visible }));
   };
 
-  // 移动端名称列：无拖拽把手，长按整行触发排序
-  const MobileFundNameCell = ({ info, showFullFundName }) => {
+  // 移动端名称列：无拖拽把手，长按整行触发排序；点击名称可打开底部卡片弹框（需传入 getFundCardProps）
+  const MobileFundNameCell = ({ info, showFullFundName, onOpenCardSheet }) => {
     const original = info.row.original || {};
     const code = original.code;
     const isUpdated = original.isUpdated;
@@ -461,7 +482,22 @@ export default function MobileFundTable({
         <div className="title-text">
           <span
             className={`name-text ${showFullFundName ? 'show-full' : ''}`}
-            title={isUpdated ? '今日净值已更新' : ''}
+            title={isUpdated ? '今日净值已更新' : onOpenCardSheet ? '点击查看卡片' : ''}
+            role={onOpenCardSheet ? 'button' : undefined}
+            tabIndex={onOpenCardSheet ? 0 : undefined}
+            style={onOpenCardSheet ? { cursor: 'pointer' } : undefined}
+            onClick={(e) => {
+              if (onOpenCardSheet) {
+                e.stopPropagation?.();
+                onOpenCardSheet(original);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (onOpenCardSheet && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                onOpenCardSheet(original);
+              }
+            }}
           >
             {info.getValue() ?? '—'}
           </span>
@@ -547,7 +583,13 @@ export default function MobileFundTable({
             </button>
           </div>
         ),
-        cell: (info) => <MobileFundNameCell info={info} showFullFundName={showFullFundName} />,
+        cell: (info) => (
+          <MobileFundNameCell
+            info={info}
+            showFullFundName={showFullFundName}
+            onOpenCardSheet={getFundCardProps ? (row) => setCardSheetRow(row) : undefined}
+          />
+        ),
         meta: { align: 'left', cellClassName: 'name-cell', width: columnWidthMap.fundName },
       },
       {
@@ -703,7 +745,7 @@ export default function MobileFundTable({
         meta: { align: 'right', cellClassName: 'holding-cell', width: columnWidthMap.holdingProfit },
       },
     ],
-    [currentTab, favorites, refreshing, columnWidthMap, showFullFundName]
+    [currentTab, favorites, refreshing, columnWidthMap, showFullFundName, getFundCardProps]
   );
 
   const table = useReactTable({
@@ -952,6 +994,55 @@ export default function MobileFundTable({
             onToggleShowFullFundName={handleToggleShowFullFundName}
           />
         )}
+
+        <Drawer
+          open={!!(cardSheetRow && getFundCardProps)}
+          onOpenChange={(open) => {
+            if (!open) {
+              if (ignoreNextDrawerCloseRef.current) {
+                ignoreNextDrawerCloseRef.current = false;
+                return;
+              }
+              if (!blockDrawerClose) setCardSheetRow(null);
+            }
+          }}
+        >
+          <DrawerContent
+            className="h-[77vh] max-h-[88vh] mt-0 flex flex-col"
+            onPointerDownOutside={(e) => {
+              if (blockDrawerClose) return;
+              if (e?.target?.closest?.('[data-slot="dialog-content"], [role="dialog"]')) {
+                ignoreNextDrawerCloseRef.current = true;
+                return;
+              }
+              setCardSheetRow(null);
+            }}
+          >
+            <DrawerHeader className="flex-shrink-0 flex flex-row items-center justify-between gap-2 space-y-0 px-5 pb-4 pt-2 text-left">
+              <DrawerTitle className="text-base font-semibold text-[var(--text)]">
+                基金详情
+              </DrawerTitle>
+              <DrawerClose asChild>
+                <button
+                  type="button"
+                  className="icon-button rounded-lg"
+                  aria-label="关闭"
+                  style={{ padding: 4, borderColor: 'transparent' }}
+                >
+                  <CloseIcon width="24" height="24" />
+                </button>
+              </DrawerClose>
+            </DrawerHeader>
+            <div
+              className="flex-1 min-h-0 overflow-y-auto px-5 pb-8 pt-0"
+              style={{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))' }}
+            >
+              {cardSheetRow && getFundCardProps ? (
+                <FundCard {...getFundCardProps(cardSheetRow)} />
+              ) : null}
+            </div>
+          </DrawerContent>
+        </Drawer>
 
         {!onlyShowHeader && showPortalHeader && ReactDOM.createPortal(renderContent(true), document.body)}
       </div>
