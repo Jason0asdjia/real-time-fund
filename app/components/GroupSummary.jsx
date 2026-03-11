@@ -76,6 +76,25 @@ export default function GroupSummary({
     }
   }, []);
 
+  // 根据窗口宽度设置基础字号，保证小屏数字不会撑破布局
+  useEffect(() => {
+    if (!winW) return;
+
+    if (winW <= 360) {
+      setAssetSize(18);
+      setMetricSize(14);
+    } else if (winW <= 414) {
+      setAssetSize(22);
+      setMetricSize(16);
+    } else if (winW <= 768) {
+      setAssetSize(24);
+      setMetricSize(18);
+    } else {
+      setAssetSize(26);
+      setMetricSize(20);
+    }
+  }, [winW]);
+
   useEffect(() => {
     if (typeof masked === 'boolean') {
       setIsMasked(masked);
