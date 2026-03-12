@@ -3356,13 +3356,13 @@ export default function HomePage() {
       isScanImporting;
 
     if (isAnyModalOpen) {
-      document.body.style.overflow = 'hidden';
+      containerRef.current.style.overflow = 'hidden';
     } else {
-      document.body.style.overflow = '';
+      containerRef.current.style.overflow = '';
     }
 
     return () => {
-      document.body.style.overflow = '';
+      containerRef.current.style.overflow = '';
     };
   }, [
     settingsOpen,
