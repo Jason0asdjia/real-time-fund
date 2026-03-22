@@ -96,10 +96,32 @@ dayjs.tz.setDefault(TZ);
 const nowInTz = () => dayjs().tz(TZ);
 const toTz = (input) => (input ? dayjs.tz(input, TZ) : nowInTz());
 const formatDate = (input) => toTz(input).format('YYYY-MM-DD');
-const ALLOWED_EMAIL = (process.env.NEXT_PUBLIC_ALLOWED_EMAIL || '').trim().toLowerCase();
-const isAllowedLoginEmail = (email) => {
-  if (!ALLOWED_EMAIL) return true;
-  return email.trim().toLowerCase() === ALLOWED_EMAIL;
+const ALLOWED_GITHUB_LOGIN = (process.env.NEXT_PUBLIC_ALLOWED_GITHUB_LOGIN || '').trim().toLowerCase();
+const getGithubLogin = (user) => {
+  if (!user) return '';
+  const identity = Array.isArray(user.identities)
+    ? user.identities.find((item) => item?.provider === 'github')
+    : null;
+  const candidates = [
+    user.user_metadata?.user_name,
+    user.user_metadata?.preferred_username,
+    user.user_metadata?.username,
+    identity?.identity_data?.user_name,
+    identity?.identity_data?.preferred_username,
+    identity?.identity_data?.username,
+  ];
+  return String(candidates.find((value) => typeof value === 'string' && value.trim()) || '').trim().toLowerCase();
+};
+const isAllowedGithubUser = (user) => {
+  if (!ALLOWED_GITHUB_LOGIN) return true;
+  return getGithubLogin(user) === ALLOWED_GITHUB_LOGIN;
+};
+const isGithubSession = (user) => {
+  if (user?.app_metadata?.provider === 'github') return true;
+  return Array.isArray(user?.identities) && user.identities.some((item) => item?.provider === 'github');
+};
+const getUserDisplayName = (user) => {
+  return user?.user_metadata?.user_name || user?.user_metadata?.preferred_username || user?.email || '用户';
 };
 
 function ScanButton({ onClick, disabled }) {
@@ -341,11 +363,8 @@ export default function HomePage() {
   }, []);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
-  const [loginEmail, setLoginEmail] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [loginSuccess, setLoginSuccess] = useState('');
-  const [loginOtp, setLoginOtp] = useState('');
 
   const userAvatar = useMemo(() => {
     if (!user?.id) return '';
@@ -2253,6 +2272,24 @@ export default function HomePage() {
       setUserMenuOpen(false);
     };
 
+    const rejectUnauthorizedSession = async (sessionUser) => {
+      const githubLogin = getGithubLogin(sessionUser);
+      const expectedLogin = ALLOWED_GITHUB_LOGIN || '指定 GitHub 账号';
+      isLoggingOutRef.current = true;
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch { }
+      clearAuthState();
+      setLoginLoading(false);
+      setLoginModalOpen(true);
+      setLoginError(
+        !isGithubSession(sessionUser)
+          ? '当前站点仅允许使用 GitHub 登录'
+          : `当前站点仅允许 GitHub 账号 ${expectedLogin} 登录${githubLogin ? `，当前账号为 ${githubLogin}` : ''}`
+      );
+      showToast('当前 GitHub 账号未被授权', 'error');
+    };
+
     const handleSession = async (session, event, isExplicitLogin = false) => {
       if (!session?.user) {
         if (event === 'SIGNED_OUT' && !isLoggingOutRef.current) {
@@ -2288,11 +2325,13 @@ export default function HomePage() {
         setLoginModalOpen(true);
         return;
       }
+      if (!isGithubSession(session.user) || !isAllowedGithubUser(session.user)) {
+        await rejectUnauthorizedSession(session.user);
+        return;
+      }
       setUser(session.user);
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
         setLoginModalOpen(false);
-        setLoginEmail('');
-        setLoginSuccess('');
         setLoginError('');
       }
       // 仅在明确的登录动作（SIGNED_IN）时检查冲突；INITIAL_SESSION（刷新页面等）不检查，直接以云端为准
@@ -2345,89 +2384,31 @@ export default function HomePage() {
   //   };
   // }, [user?.id]);
 
-  const handleSendOtp = async (e) => {
-    e.preventDefault();
+  const handleGithubLogin = async () => {
     setLoginError('');
-    setLoginSuccess('');
     if (!isSupabaseConfigured) {
       showToast('未配置 Supabase，无法登录', 'error');
       return;
     }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!loginEmail.trim()) {
-      setLoginError('请输入邮箱地址');
-      return;
-    }
-    const normalizedEmail = loginEmail.trim().toLowerCase();
-    if (!emailRegex.test(normalizedEmail)) {
-      setLoginError('请输入有效的邮箱地址');
-      return;
-    }
-    if (!isAllowedLoginEmail(normalizedEmail)) {
-      setLoginError('当前站点仅允许指定邮箱登录');
-      return;
-    }
-
     setLoginLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: normalizedEmail,
+      const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/` : undefined;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'github',
         options: {
-          shouldCreateUser: false
+          redirectTo,
+          scopes: 'read:user user:email'
         }
       });
       if (error) throw error;
-      setLoginSuccess('验证码已发送，请查收邮箱并输入验证码完成登录');
     } catch (err) {
-      if (err.message?.includes('rate limit')) {
-        setLoginError('请求过于频繁，请稍后再试');
-      } else if (err.message?.includes('Signups not allowed for otp')) {
-        setLoginError('该邮箱未被授权登录，请先在 Supabase 中创建你的账号');
-      } else if (err.message?.includes('network')) {
-        setLoginError('网络错误，请检查网络连接');
-      } else {
-        setLoginError(err.message || '发送验证码失败，请稍后再试');
-      }
-    } finally {
+      setLoginError(err.message || '跳转 GitHub 登录失败，请稍后再试');
       setLoginLoading(false);
-    }
-  };
-
-  const handleVerifyEmailOtp = async () => {
-    setLoginError('');
-    if (!loginOtp || loginOtp.length < 4) {
-      setLoginError('请输入邮箱中的验证码');
-      return;
-    }
-    if (!isSupabaseConfigured) {
-      showToast('未配置 Supabase，无法登录', 'error');
-      return;
-    }
-    try {
-      isExplicitLoginRef.current = true;
-      setLoginLoading(true);
-      if (!isAllowedLoginEmail(loginEmail)) {
-        throw new Error('当前站点仅允许指定邮箱登录');
+    } finally {
+      if (typeof window === 'undefined') {
+        setLoginLoading(false);
       }
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: loginEmail.trim(),
-        token: loginOtp.trim(),
-        type: 'email'
-      });
-      if (error) throw error;
-      if (data?.user) {
-        setLoginModalOpen(false);
-        setLoginEmail('');
-        setLoginOtp('');
-        setLoginSuccess('');
-        setLoginError('');
-      }
-    } catch (err) {
-      setLoginError(err.message || '验证失败，请检查验证码或稍后再试');
-      isExplicitLoginRef.current = false;
     }
-    setLoginLoading(false);
   };
 
   // 登出
@@ -2436,9 +2417,6 @@ export default function HomePage() {
     if (!isSupabaseConfigured) {
       setLoginModalOpen(false);
       setLoginError('');
-      setLoginSuccess('');
-      setLoginEmail('');
-      setLoginOtp('');
       setUserMenuOpen(false);
       setUser(null);
       return;
@@ -2476,9 +2454,6 @@ export default function HomePage() {
       } catch { }
       setLoginModalOpen(false);
       setLoginError('');
-      setLoginSuccess('');
-      setLoginEmail('');
-      setLoginOtp('');
       setUserMenuOpen(false);
       setUser(null);
     }
@@ -3902,7 +3877,7 @@ export default function HomePage() {
               className={`icon-button user-menu-trigger ${user ? 'logged-in' : ''}`}
               aria-label={user ? '用户菜单' : '登录'}
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              title={user ? (user.email || '用户') : '用户菜单'}
+              title={user ? getUserDisplayName(user) : '用户菜单'}
             >
               {user ? (
                 <div className="user-avatar-small">
@@ -3916,7 +3891,7 @@ export default function HomePage() {
                       style={{ borderRadius: '50%' }}
                     />
                   ) : (
-                    (user.email?.charAt(0).toUpperCase() || 'U')
+                    (getUserDisplayName(user)?.charAt(0).toUpperCase() || 'U')
                   )}
                 </div>
               ) : (
@@ -3948,11 +3923,14 @@ export default function HomePage() {
                               style={{ borderRadius: '50%' }}
                             />
                           ) : (
-                            (user.email?.charAt(0).toUpperCase() || 'U')
+                            (getUserDisplayName(user)?.charAt(0).toUpperCase() || 'U')
                           )}
                         </div>
                         <div className="user-info">
-                          <span className="user-email">{user.email}</span>
+                          <span className="user-email">{getUserDisplayName(user)}</span>
+                          {user.email && user.email !== getUserDisplayName(user) && (
+                            <span className="muted" style={{ fontSize: '11px' }}>{user.email}</span>
+                          )}
                           <span className="user-status">已登录</span>
                           {lastSyncTime && (
                             <span className="muted" style={{ fontSize: '10px', marginTop: 2 }}>
@@ -4894,19 +4872,10 @@ export default function HomePage() {
           onClose={() => {
             setLoginModalOpen(false);
             setLoginError('');
-            setLoginSuccess('');
-            setLoginEmail('');
-            setLoginOtp('');
           }}
-          loginEmail={loginEmail}
-          setLoginEmail={setLoginEmail}
-          loginOtp={loginOtp}
-          setLoginOtp={setLoginOtp}
           loginLoading={loginLoading}
           loginError={loginError}
-          loginSuccess={loginSuccess}
-          handleSendOtp={handleSendOtp}
-          handleVerifyEmailOtp={handleVerifyEmailOtp}
+          handleGithubLogin={handleGithubLogin}
         />
       )}
 
