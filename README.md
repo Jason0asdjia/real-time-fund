@@ -66,6 +66,7 @@
    按照 `env.example` 填入以下值：
   - `NEXT_PUBLIC_Supabase_URL`：Supabase 项目 URL
   - `NEXT_PUBLIC_Supabase_ANON_KEY`：Supabase 匿名公钥
+  - `NEXT_PUBLIC_ALLOWED_EMAIL`：可选，限制只有指定邮箱可以登录站点
   - `NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY`：Web3Forms Access Key
   - `NEXT_PUBLIC_GA_ID`：Google Analytics Measurement ID（如 `G-xxxx`）
   - `NEXT_PUBLIC_GITHUB_LATEST_RELEASE_URL`：GitHub 最新 Release 接口地址，用于在页面中展示“发现新版本”提示（如：`https://api.github.com/repos/hzm0321/real-time-fund/releases/latest`）
@@ -106,17 +107,44 @@
 
 更多 Supabase 相关内容查阅官方文档。
 
+### 单用户私有使用建议
+
+如果你只想自己多设备同步使用，建议同时做这几项：
+
+1. 配置 `NEXT_PUBLIC_ALLOWED_EMAIL` 为你自己的邮箱。
+2. 在 Supabase 控制台关闭公开注册，只保留你自己的账号。
+3. 在 Supabase `Authentication -> Users` 中手动创建或邀请你自己的邮箱账号。
+4. 执行 `doc/supabase.sql` 启用 RLS，确保数据库层只允许用户访问自己的记录。
+
+这样即使站点本身是公开可访问的，其他人也无法登录并读取你的云端配置。
+
 ### 构建与部署
 
 本项目已配置 GitHub Actions。每次推送到 `main` 分支时，会自动执行构建并部署到 GitHub Pages。
 如需使用 GitHub Actions 部署，请在 GitHub 项目 Settings → Secrets and variables → Actions 中创建对应的 Repository secrets（字段名称与 `.env.local` 保持一致）。
-包括：`NEXT_PUBLIC_Supabase_URL`、`NEXT_PUBLIC_Supabase_ANON_KEY`、`NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY`、`NEXT_PUBLIC_GA_ID`、`NEXT_PUBLIC_GITHUB_LATEST_RELEASE_URL`。
+包括：`NEXT_PUBLIC_Supabase_URL`、`NEXT_PUBLIC_Supabase_ANON_KEY`、`NEXT_PUBLIC_ALLOWED_EMAIL`、`NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY`、`NEXT_PUBLIC_GA_ID`、`NEXT_PUBLIC_GITHUB_LATEST_RELEASE_URL`。
+
+若使用自定义域名，可在 `public/CNAME` 中写入你的域名，例如：
+```txt
+v7yo.de
+```
+部署完成后，再到 GitHub Pages 设置中绑定相同域名并配置 DNS。
 
 若要手动构建：
 ```bash
 npm run build
 ```
 静态文件将生成在 `out` 目录下。
+
+### 跟随上游更新
+
+如果你保留原仓库为 `upstream` 远程，可在自己的仓库中使用：
+
+```bash
+./scripts/sync-upstream.sh
+```
+
+脚本会从 `upstream/main` 拉取最新代码，并以 fast-forward 方式更新你当前分支。若你本地有自己的提交，建议先处理完冲突再同步。
 
 ### Docker运行
 

@@ -96,6 +96,11 @@ dayjs.tz.setDefault(TZ);
 const nowInTz = () => dayjs().tz(TZ);
 const toTz = (input) => (input ? dayjs.tz(input, TZ) : nowInTz());
 const formatDate = (input) => toTz(input).format('YYYY-MM-DD');
+const ALLOWED_EMAIL = (process.env.NEXT_PUBLIC_ALLOWED_EMAIL || '').trim().toLowerCase();
+const isAllowedLoginEmail = (email) => {
+  if (!ALLOWED_EMAIL) return true;
+  return email.trim().toLowerCase() === ALLOWED_EMAIL;
+};
 
 function ScanButton({ onClick, disabled }) {
   return (
@@ -2354,24 +2359,31 @@ export default function HomePage() {
       setLoginError('请输入邮箱地址');
       return;
     }
-    if (!emailRegex.test(loginEmail.trim())) {
+    const normalizedEmail = loginEmail.trim().toLowerCase();
+    if (!emailRegex.test(normalizedEmail)) {
       setLoginError('请输入有效的邮箱地址');
+      return;
+    }
+    if (!isAllowedLoginEmail(normalizedEmail)) {
+      setLoginError('当前站点仅允许指定邮箱登录');
       return;
     }
 
     setLoginLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOtp({
-        email: loginEmail.trim(),
+        email: normalizedEmail,
         options: {
-          shouldCreateUser: true
+          shouldCreateUser: false
         }
       });
       if (error) throw error;
-      setLoginSuccess('验证码已发送，请查收邮箱输入验证码完成注册/登录');
+      setLoginSuccess('验证码已发送，请查收邮箱并输入验证码完成登录');
     } catch (err) {
       if (err.message?.includes('rate limit')) {
         setLoginError('请求过于频繁，请稍后再试');
+      } else if (err.message?.includes('Signups not allowed for otp')) {
+        setLoginError('该邮箱未被授权登录，请先在 Supabase 中创建你的账号');
       } else if (err.message?.includes('network')) {
         setLoginError('网络错误，请检查网络连接');
       } else {
@@ -2395,6 +2407,9 @@ export default function HomePage() {
     try {
       isExplicitLoginRef.current = true;
       setLoginLoading(true);
+      if (!isAllowedLoginEmail(loginEmail)) {
+        throw new Error('当前站点仅允许指定邮箱登录');
+      }
       const { data, error } = await supabase.auth.verifyOtp({
         email: loginEmail.trim(),
         token: loginOtp.trim(),

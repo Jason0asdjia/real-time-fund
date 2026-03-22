@@ -15,6 +15,7 @@ alter table public.user_configs enable row level security;
 drop policy if exists "user_configs_select_own" on public.user_configs;
 drop policy if exists "user_configs_insert_own" on public.user_configs;
 drop policy if exists "user_configs_update_own" on public.user_configs;
+drop policy if exists "user_configs_delete_own" on public.user_configs;
 
 create policy "user_configs_select_own"
 on public.user_configs
@@ -31,6 +32,11 @@ on public.user_configs
 for update
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
+
+create policy "user_configs_delete_own"
+on public.user_configs
+for delete
+using (auth.uid() = user_id);
 
 -- 增量更新函数
 create or replace function public.update_user_config_partial(payload jsonb)
@@ -50,3 +56,7 @@ $$;
 
 grant execute on function public.update_user_config_partial(jsonb) to authenticated;
 grant execute on function public.update_user_config_partial(jsonb) to service_role;
+
+-- 可选：如果你只打算给自己一个人使用，建议在 Supabase 控制台里关闭公开注册，
+-- 然后在 Authentication -> Users 中手动创建你自己的邮箱账号。
+-- 前端也可通过 NEXT_PUBLIC_ALLOWED_EMAIL 限制只接受指定邮箱发起登录。
