@@ -8,6 +8,8 @@ function CountUp({ value, prefix = '', suffix = '', decimals = 2, className = ''
   const [displayValue, setDisplayValue] = useState(value);
   const previousValue = useRef(value);
   const isFirstChange = useRef(true);
+  const rafIdRef = useRef(null);
+  const displayValueRef = useRef(value);
 
   useEffect(() => {
     if (previousValue.current === value) return;
@@ -15,13 +17,14 @@ function CountUp({ value, prefix = '', suffix = '', decimals = 2, className = ''
     if (isFirstChange.current) {
       isFirstChange.current = false;
       previousValue.current = value;
+      displayValueRef.current = value;
       setDisplayValue(value);
       return;
     }
 
-    const start = previousValue.current;
+    const start = displayValueRef.current;
     const end = value;
-    const duration = 400;
+    const duration = 300;
     const startTime = performance.now();
 
     const animate = (currentTime) => {
@@ -29,16 +32,25 @@ function CountUp({ value, prefix = '', suffix = '', decimals = 2, className = ''
       const progress = Math.min(elapsed / duration, 1);
       const ease = 1 - Math.pow(1 - progress, 4);
       const current = start + (end - start) * ease;
+      displayValueRef.current = current;
       setDisplayValue(current);
 
       if (progress < 1) {
-        requestAnimationFrame(animate);
+        rafIdRef.current = requestAnimationFrame(animate);
       } else {
         previousValue.current = value;
+        rafIdRef.current = null;
       }
     };
 
-    requestAnimationFrame(animate);
+    rafIdRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (rafIdRef.current != null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+    };
   }, [value]);
 
   return (

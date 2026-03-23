@@ -202,7 +202,7 @@ export default function TradeModal({ type, fund, holding, onClose, onConfirm, pe
   };
 
   const isValid = isBuy
-    ? (!!amount && !!feeRate && !!date && calcShare !== null && !loadingBuyMeta && (parseFloat(amount) || 0) >= (Number(minBuyAmount) || 0))
+    ? (!!amount && !!feeRate && !!date && calcShare !== null && !loadingBuyMeta)
     : (!!share && !!date);
 
   const handleSetShareFraction = (fraction) => {
@@ -434,9 +434,7 @@ export default function TradeModal({ type, fund, holding, onClose, onConfirm, pe
                           </label>
                           <div
                             style={{
-                              border: (!amount || (Number(minBuyAmount) > 0 && (parseFloat(amount) || 0) < Number(minBuyAmount)))
-                                ? '1px solid var(--danger)'
-                                : '1px solid var(--border)',
+                              border: !amount ? '1px solid var(--danger)' : '1px solid var(--border)',
                               borderRadius: 12
                             }}
                           >
@@ -444,15 +442,10 @@ export default function TradeModal({ type, fund, holding, onClose, onConfirm, pe
                               value={amount}
                               onChange={setAmount}
                               step={100}
-                              min={Number(minBuyAmount) || 0}
-                              placeholder={(Number(minBuyAmount) || 0) > 0 ? `最少 ¥${Number(minBuyAmount)}，请输入加仓金额` : '请输入加仓金额'}
+                              min={0}
+                              placeholder="请输入加仓金额"
                             />
                           </div>
-                          {(Number(minBuyAmount) || 0) > 0 && (
-                            <div className="muted" style={{ fontSize: '12px', marginTop: 6 }}>
-                              最小加仓金额：¥{Number(minBuyAmount)}
-                            </div>
-                          )}
                         </div>
 
                         <div className="row" style={{ gap: 12, marginBottom: 16 }}>
