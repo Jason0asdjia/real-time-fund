@@ -14,13 +14,6 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from '@/components/ui/drawer';
 
 function buildRows(history) {
   if (!Array.isArray(history) || history.length === 0) return [];
@@ -263,59 +256,28 @@ export default function FundHistoryNetValueModal({ open, onOpenChange, code, the
 
   if (!open) return null;
 
-  if (isMobile) {
-    return (
-      <Drawer open={open} onOpenChange={handleOpenChange} direction="bottom">
-        <DrawerContent
-          className="glass"
-          defaultHeight="70vh"
-          minHeight="40vh"
-          maxHeight="90vh"
-        >
-          <DrawerHeader className="flex flex-row items-center justify-between gap-2 py-3">
-            <DrawerTitle className="flex items-center gap-2.5 text-left">
-              <span>历史净值</span>
-            </DrawerTitle>
-            <DrawerClose
-              className="icon-button border-none bg-transparent p-1"
-              title="关闭"
-              style={{
-                borderColor: 'transparent',
-                backgroundColor: 'transparent',
-              }}
-            >
-              <CloseIcon width="20" height="20" />
-            </DrawerClose>
-          </DrawerHeader>
-          <div className="flex-1 px-4 pb-4">
-            {body}
-          </div>
-        </DrawerContent>
-      </Drawer>
-    );
-  }
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="glass card modal"
-        overlayClassName="modal-overlay"
-        overlayStyle={{ zIndex: 9998 }}
+        className="glass z-[10000]"
+        overlayClassName="modal-overlay z-[9999]"
         style={{
           maxWidth: '520px',
           width: '90vw',
           maxHeight: '80vh',
           display: 'flex',
           flexDirection: 'column',
-          zIndex: 9999,
+          padding: 0,
+          overflow: 'hidden',
         }}
       >
         <DialogTitle className="sr-only">历史净值</DialogTitle>
-        {header}
-        {body}
+        <div className="flex flex-col px-5 pb-5 pt-4">
+          {header}
+          {body}
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
-

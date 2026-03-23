@@ -223,10 +223,9 @@ export default function TradeModal({ type, fund, holding, onClose, onConfirm, pe
     <Dialog open onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="glass card modal trade-modal"
-        overlayClassName="modal-overlay"
-        overlayStyle={{ zIndex: 99 }}
-        style={{ maxWidth: '420px', width: '90vw', zIndex: 99 }}
+        className="glass card modal trade-modal !z-[12010]"
+        overlayClassName="!z-[12000]"
+        style={{ maxWidth: '420px', width: '90vw' }}
       >
         <DialogTitle className="sr-only">{isBuy ? '加仓' : '减仓'}</DialogTitle>
         <div className="title" style={{ marginBottom: 20, justifyContent: 'space-between' }}>

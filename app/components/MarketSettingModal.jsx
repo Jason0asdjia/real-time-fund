@@ -20,12 +20,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerClose,
-} from "@/components/ui/drawer";
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { CloseIcon, MinusIcon, ResetIcon, SettingsIcon } from "./Icons";
 import ConfirmModal from "./ConfirmModal";
 import { cn } from "@/lib/utils";
@@ -342,26 +340,35 @@ export default function MarketSettingModal({
 
   if (isMobile) {
     return (
-      <Drawer
+      <Dialog
         open={open}
         onOpenChange={(v) => {
           if (!v) onClose?.();
         }}
-        direction="bottom"
       >
-        <DrawerContent
-          className="glass"
-          defaultHeight="77vh"
-          minHeight="40vh"
-          maxHeight="90vh"
+        <DialogContent
+          overlayClassName="modal-overlay z-[9999]"
+          className="glass z-[10000]"
+          showCloseButton={false}
+          style={{
+            width: "min(92vw, 680px)",
+            maxWidth: "680px",
+            maxHeight: "min(80vh, 780px)",
+            padding: 0,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
         >
-          <DrawerHeader className="flex flex-row items-center justify-between gap-2 py-4">
-            <DrawerTitle className="flex items-center gap-2.5 text-left">
+          <div className="flex flex-row items-center justify-between gap-2 px-5 py-4">
+            <DialogTitle className="flex items-center gap-2.5 text-left">
               <SettingsIcon width="20" height="20" />
               <span>指数个性化设置</span>
-            </DrawerTitle>
-            <DrawerClose
+            </DialogTitle>
+            <button
+              type="button"
               className="icon-button border-none bg-transparent p-1"
+              onClick={onClose}
               title="关闭"
               style={{
                 borderColor: "transparent",
@@ -369,10 +376,10 @@ export default function MarketSettingModal({
               }}
             >
               <CloseIcon width="20" height="20" />
-            </DrawerClose>
-          </DrawerHeader>
-          <div className="flex-1 overflow-y-auto">{body}</div>
-        </DrawerContent>
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 pb-5" style={{ minHeight: 0 }}>{body}</div>
+        </DialogContent>
         <AnimatePresence>
           {resetConfirmOpen && (
             <ConfirmModal
@@ -396,7 +403,7 @@ export default function MarketSettingModal({
             />
           )}
         </AnimatePresence>
-      </Drawer>
+      </Dialog>
     );
   }
 
@@ -471,4 +478,3 @@ export default function MarketSettingModal({
   if (typeof document === "undefined") return null;
   return createPortal(pcContent, document.body);
 }
-

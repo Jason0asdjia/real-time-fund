@@ -18,9 +18,9 @@ export default function HoldingActionModal({ fund, onClose, onAction, hasHistory
     <Dialog open onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="glass card modal"
-        overlayClassName="modal-overlay"
-        style={{ maxWidth: '320px', zIndex: 99 }}
+        className="glass card modal !z-[12010]"
+        overlayClassName="!z-[12000]"
+        style={{ maxWidth: '320px' }}
       >
         <DialogTitle className="sr-only">持仓操作</DialogTitle>
         <div className="title" style={{ marginBottom: 20, justifyContent: 'space-between' }}>

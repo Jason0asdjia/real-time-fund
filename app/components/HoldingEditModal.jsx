@@ -174,9 +174,9 @@ export default function HoldingEditModal({ fund, holding, onClose, onSave, onOpe
     <Dialog open onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="glass card modal"
-        overlayClassName="modal-overlay"
-        style={{ maxWidth: '400px', zIndex: 999, width: '90vw' }}
+        className="glass card modal !z-[12010]"
+        overlayClassName="!z-[12000]"
+        style={{ maxWidth: '400px', width: '90vw' }}
       >
         <DialogTitle className="sr-only">编辑持仓</DialogTitle>
         <div className="title" style={{ marginBottom: 20, justifyContent: 'space-between' }}>

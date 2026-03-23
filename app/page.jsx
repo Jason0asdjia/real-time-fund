@@ -20,6 +20,7 @@ import {
   CloseIcon,
   EyeIcon,
   EyeOffIcon,
+  ExitIcon,
   GridIcon,
   ListIcon,
   LoginIcon,
@@ -178,8 +179,19 @@ export default function HomePage() {
       if (Number.isFinite(num)) {
         setContainerWidth(Math.min(2000, Math.max(600, num)));
       }
-      if (typeof parsed?.showMarketIndexPc === 'boolean') setShowMarketIndexPc(parsed.showMarketIndexPc);
-      if (typeof parsed?.showMarketIndexMobile === 'boolean') setShowMarketIndexMobile(parsed.showMarketIndexMobile);
+      const legacyShowMarketIndex = typeof parsed?.showMarketIndex === 'boolean'
+        ? parsed.showMarketIndex
+        : null;
+      if (typeof parsed?.showMarketIndexPc === 'boolean') {
+        setShowMarketIndexPc(parsed.showMarketIndexPc);
+      } else if (legacyShowMarketIndex != null) {
+        setShowMarketIndexPc(legacyShowMarketIndex);
+      }
+      if (typeof parsed?.showMarketIndexMobile === 'boolean') {
+        setShowMarketIndexMobile(parsed.showMarketIndexMobile);
+      } else if (legacyShowMarketIndex != null) {
+        setShowMarketIndexMobile(legacyShowMarketIndex);
+      }
     } catch { }
   }, []);
 
@@ -222,6 +234,7 @@ export default function HomePage() {
   const [isSortLoaded, setIsSortLoaded] = useState(false);
   const [sortRules, setSortRules] = useState(DEFAULT_SORT_RULES);
   const [sortSettingOpen, setSortSettingOpen] = useState(false);
+  const mobileTableScrollSyncRef = useRef({ listeners: new Set(), scrollLeft: 0 });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -330,13 +343,14 @@ export default function HomePage() {
   useEffect(() => {
     const enabledRules = (sortRules || []).filter((r) => r.enabled);
     const enabledIds = enabledRules.map((r) => r.id);
+    const headerSortableIds = ['default', 'name', 'yield', 'yesterdayIncrease', 'estimateProfit', 'holding'];
     if (!enabledIds.length) {
       // 至少保证默认存在
       setSortRules(DEFAULT_SORT_RULES);
       setSortBy('default');
       return;
     }
-    if (!enabledIds.includes(sortBy)) {
+    if (!enabledIds.includes(sortBy) && !headerSortableIds.includes(sortBy)) {
       setSortBy(enabledIds[0]);
     }
   }, [sortRules, sortBy]);
@@ -434,14 +448,25 @@ export default function HomePage() {
       }
     };
 
-    // 初始延迟一下，确保渲染完成
+    updateHeights();
+
     const timer = setTimeout(updateHeights, 100);
+    const navbarEl = navbarRef.current;
+    const filterBarEl = filterBarRef.current;
+    const ro = new ResizeObserver(() => {
+      updateHeights();
+    });
+
+    if (navbarEl) ro.observe(navbarEl);
+    if (filterBarEl) ro.observe(filterBarEl);
+
     window.addEventListener('resize', updateHeights);
     return () => {
       window.removeEventListener('resize', updateHeights);
       clearTimeout(timer);
+      ro.disconnect();
     };
-  }, [groups, currentTab]); // groups 或 tab 变化可能导致 filterBar 高度变化
+  }, [groups, currentTab]);
 
   const handleMobileSearchClick = (e) => {
     e?.preventDefault();
@@ -478,6 +503,7 @@ export default function HomePage() {
   const [isTradingDay, setIsTradingDay] = useState(true); // 默认为交易日，通过接口校正
   const tabsRef = useRef(null);
   const [fundDeleteConfirm, setFundDeleteConfirm] = useState(null); // { code, name }
+  const [groupFundRemoveConfirm, setGroupFundRemoveConfirm] = useState(null);
   const fundDetailDrawerCloseRef = useRef(null); // 由 MobileFundTable 注入，用于确认删除时关闭基金详情 Drawer
   const fundDetailDialogCloseRef = useRef(null); // 由 PcFundTable 注入，用于确认删除时关闭基金详情 Dialog
 
@@ -488,7 +514,7 @@ export default function HomePage() {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const checkMobile = () => setIsMobile(window.innerWidth <= 640);
+      const checkMobile = () => setIsMobile(window.innerWidth <= 768);
       checkMobile();
       window.addEventListener('resize', checkMobile);
       return () => window.removeEventListener('resize', checkMobile);
@@ -692,16 +718,18 @@ export default function HomePage() {
         if (currentTab === 'all') return true;
         if (currentTab === 'fav') return favorites.has(f.code);
         const group = groups.find(g => g.id === currentTab);
-        return group ? group.codes.includes(f.code) : true;
+        if (!group || !Array.isArray(group.codes)) return true;
+        const fundCode = String(f.code);
+        return group.codes.some((code) => String(code) === fundCode);
       });
 
       if (currentTab !== 'all' && currentTab !== 'fav' && sortBy === 'default') {
         const group = groups.find(g => g.id === currentTab);
         if (group && group.codes) {
-          const codeMap = new Map(group.codes.map((code, index) => [code, index]));
+          const codeMap = new Map(group.codes.map((code, index) => [String(code), index]));
           filtered.sort((a, b) => {
-            const indexA = codeMap.get(a.code) ?? Number.MAX_SAFE_INTEGER;
-            const indexB = codeMap.get(b.code) ?? Number.MAX_SAFE_INTEGER;
+            const indexA = codeMap.get(String(a.code)) ?? Number.MAX_SAFE_INTEGER;
+            const indexB = codeMap.get(String(b.code)) ?? Number.MAX_SAFE_INTEGER;
             return indexA - indexB;
           });
         }
@@ -747,8 +775,14 @@ export default function HomePage() {
           return sortOrder === 'asc' ? amountA - amountB : amountB - amountA;
         }
         if (sortBy === 'yesterdayIncrease') {
-          const valA = Number(a.zzl);
-          const valB = Number(b.zzl);
+          const parsePercentValue = (value) => {
+            if (value == null) return Number.NaN;
+            const normalized = String(value).replace('%', '').replace(/[^\d.+-]/g, '');
+            const parsed = Number.parseFloat(normalized);
+            return Number.isFinite(parsed) ? parsed : Number.NaN;
+          };
+          const valA = parsePercentValue(a.zzl);
+          const valB = parsePercentValue(b.zzl);
           const hasA = Number.isFinite(valA);
           const hasB = Number.isFinite(valB);
 
@@ -766,13 +800,51 @@ export default function HomePage() {
           const valB = pb?.profitTotal ?? Number.NEGATIVE_INFINITY;
           return sortOrder === 'asc' ? valA - valB : valB - valA;
         }
+        if (sortBy === 'estimateProfit') {
+          const getEstimateProfitValue = (fund) => {
+            const holding = holdings[fund.code];
+            const profit = getHoldingProfit(fund, holding);
+            const total = profit ? profit.profitTotal : null;
+            const principal =
+              holding && isNumber(holding.cost) && isNumber(holding.share)
+                ? holding.cost * holding.share
+                : 0;
+            const yesterdayDate = fund.jzrq || '-';
+            const estimateTime = fund.noValuation ? (fund.jzrq || '-') : (fund.gztime || fund.time || '-');
+            const hasTodayData = isString(yesterdayDate) && yesterdayDate.startsWith(todayStr);
+            const hasTodayEstimate = !fund.noValuation && isString(fund.gztime) && fund.gztime.startsWith(todayStr);
+            const estimateChangeValue = fund.noValuation
+              ? null
+              : (fund.estPricedCoverage > 0.05
+                ? (isNumber(fund.estGszzl) ? Number(fund.estGszzl) : null)
+                : (isNumber(fund.gszzl) ? Number(fund.gszzl) : null));
+            const holdingProfitPercentValue =
+              total != null && principal > 0 ? (total / principal) * 100 : null;
+            const hasEstimatePercent = hasTodayEstimate && estimateChangeValue != null;
+            const hasHoldingPercent = holdingProfitPercentValue != null;
+            const fallbackEstimateProfitPercentValue = hasEstimatePercent || hasHoldingPercent
+              ? (hasEstimatePercent ? estimateChangeValue : 0) + (hasHoldingPercent ? holdingProfitPercentValue : 0)
+              : null;
+            const estimateProfitPercentValue = hasTodayData
+              ? holdingProfitPercentValue
+              : fallbackEstimateProfitPercentValue;
+            return hasTodayData
+              ? (total ?? Number.NEGATIVE_INFINITY)
+              : (estimateProfitPercentValue != null && principal > 0
+                ? principal * (estimateProfitPercentValue / 100)
+                : Number.NEGATIVE_INFINITY);
+          };
+          const valA = getEstimateProfitValue(a);
+          const valB = getEstimateProfitValue(b);
+          return sortOrder === 'asc' ? valA - valB : valB - valA;
+        }
         if (sortBy === 'name') {
           return sortOrder === 'asc' ? a.name.localeCompare(b.name, 'zh-CN') : b.name.localeCompare(a.name, 'zh-CN');
         }
         return 0;
       });
     },
-    [funds, currentTab, favorites, groups, sortBy, sortOrder, holdings, getHoldingProfit],
+    [funds, currentTab, favorites, groups, sortBy, sortOrder, holdings, getHoldingProfit, todayStr],
   );
 
   // PC 端表格数据（用于 PcFundTable）
@@ -907,6 +979,9 @@ export default function HomePage() {
       }),
     [displayFunds, holdings, isTradingDay, todayStr, getHoldingProfit, dcaPlans],
   );
+
+  const isIntegratedMobileListView = isMobile && viewMode === 'list' && displayFunds.length > 0;
+
 
   // 自动滚动选中 Tab 到可视区域
   useEffect(() => {
@@ -2056,17 +2131,38 @@ export default function HomePage() {
   };
 
   const removeFundFromCurrentGroup = (code) => {
+    const codeStr = String(code);
     const next = groups.map(g => {
       if (g.id === currentTab) {
         return {
           ...g,
-          codes: g.codes.filter(c => c !== code)
+          codes: g.codes.filter(c => String(c) !== codeStr)
         };
       }
       return g;
     });
     setGroups(next);
     storageHelper.setItem('groups', JSON.stringify(next));
+  };
+
+  const requestRemoveFundFromCurrentGroup = (fund) => {
+    if (currentTab === 'all' || currentTab === 'fav') return;
+
+    const code = String(fund?.code ?? fund ?? '');
+    if (!code) return;
+
+    const group = groups.find((g) => g.id === currentTab);
+    const fundName =
+      fund?.name ||
+      fund?.fundName ||
+      funds.find((item) => String(item.code) === code)?.name ||
+      code;
+
+    setGroupFundRemoveConfirm({
+      code,
+      name: fundName,
+      groupName: group?.name || '当前分组',
+    });
   };
 
   const toggleFundInGroup = (code, groupId) => {
@@ -3570,6 +3666,7 @@ export default function HomePage() {
       !!clearConfirm ||
       donateOpen ||
       !!fundDeleteConfirm ||
+      !!groupFundRemoveConfirm ||
       updateModalOpen ||
       weChatOpen ||
       scanModalOpen ||
@@ -3605,6 +3702,7 @@ export default function HomePage() {
     clearConfirm,
     donateOpen,
     fundDeleteConfirm,
+    groupFundRemoveConfirm,
     updateModalOpen,
     weChatOpen,
     scanModalOpen,
@@ -3628,8 +3726,17 @@ export default function HomePage() {
     return group ? `${group.name}资产` : '分组资产';
   };
 
+  const mobileContentTopPadding = isMobile ? 70.5 : undefined;
+
   return (
-    <div ref={containerRef} className="container content" style={{ width: containerWidth }}>
+    <div
+      ref={containerRef}
+      className="container content"
+      style={{
+        width: containerWidth,
+        ...(mobileContentTopPadding != null ? { paddingTop: mobileContentTopPadding } : {}),
+      }}
+    >
       <AnimatePresence>
         {showThemeTransition && (
           <motion.div
@@ -4017,9 +4124,32 @@ export default function HomePage() {
           refreshing={refreshing}
         />
       )}
-      <div className="grid">
-        <div className="col-12">
-          <div ref={filterBarRef} className="filter-bar" style={{ top: navbarHeight + marketIndexAccordionHeight, marginTop: 0, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      <div
+        className="grid"
+        style={{
+          ...(isMobile ? { paddingTop: 0 } : {}),
+        }}
+      >
+        <div className={`col-12 ${isIntegratedMobileListView ? 'mobile-integrated-shell' : ''}`}>
+          <div
+            ref={filterBarRef}
+            className={`filter-bar ${isIntegratedMobileListView ? 'mobile-list-integrated' : ''}`}
+            style={{
+              position: isIntegratedMobileListView
+                ? (isMobile ? 'relative' : 'sticky')
+                : undefined,
+              top: isIntegratedMobileListView
+                ? (isMobile ? 0 : navbarHeight)
+                : navbarHeight + marketIndexAccordionHeight,
+              marginTop: 0,
+              marginBottom: isIntegratedMobileListView ? 0 : 8,
+              display: 'flex',
+              justifyContent: isMobile ? 'flex-start' : 'space-between',
+              alignItems: isMobile ? 'stretch' : 'center',
+              flexWrap: isMobile ? 'nowrap' : 'wrap',
+              gap: isMobile ? 4 : 12,
+            }}
+          >
             <div className="tabs-container">
               <div
                 className="tabs-scroll-area"
@@ -4096,32 +4226,50 @@ export default function HomePage() {
               </button>
             </div>
 
-            <div className="sort-group" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div className="view-toggle" style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', padding: '2px' }}>
+            {isMobile && displayFunds.length > 0 && (
+              <GroupSummary
+                  funds={displayFunds}
+                  holdings={holdings}
+                  groupName={getGroupName()}
+                  getProfit={getHoldingProfit}
+                  stickyTop={0}
+                  isSticky={false}
+                  masked={maskAmounts}
+                  onToggleMasked={() => setMaskAmounts((v) => !v)}
+                  marketIndexAccordionHeight={marketIndexAccordionHeight}
+                  navbarHeight={navbarHeight}
+                  isMobile={isMobile}
+                  mobileInline
+                />
+            )}
+
+            {!isMobile && (
+            <div className={`sort-group ${isMobile ? 'sort-group-mobile' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div className={`view-toggle ${isMobile ? 'view-toggle-mobile' : ''}`} style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', padding: '2px' }}>
                 <button
                   className={`icon-button ${viewMode === 'card' ? 'active' : ''}`}
                   onClick={() => { applyViewMode('card'); }}
-                  style={{ border: 'none', width: '32px', height: '32px', background: viewMode === 'card' ? 'var(--primary)' : 'transparent', color: viewMode === 'card' ? '#05263b' : 'var(--muted)' }}
+                  style={{ border: 'none', width: isMobile ? '28px' : '32px', height: isMobile ? '28px' : '32px', background: viewMode === 'card' ? 'var(--primary)' : 'transparent', color: viewMode === 'card' ? '#05263b' : 'var(--muted)' }}
                   title="卡片视图"
                 >
-                  <GridIcon width="16" height="16" />
+                  <GridIcon width={isMobile ? "15" : "16"} height={isMobile ? "15" : "16"} />
                 </button>
                 <button
                   className={`icon-button ${viewMode === 'list' ? 'active' : ''}`}
                   onClick={() => { applyViewMode('list'); }}
-                  style={{ border: 'none', width: '32px', height: '32px', background: viewMode === 'list' ? 'var(--primary)' : 'transparent', color: viewMode === 'list' ? '#05263b' : 'var(--muted)' }}
+                  style={{ border: 'none', width: isMobile ? '28px' : '32px', height: isMobile ? '28px' : '32px', background: viewMode === 'list' ? 'var(--primary)' : 'transparent', color: viewMode === 'list' ? '#05263b' : 'var(--muted)' }}
                   title="表格视图"
                 >
-                  <ListIcon width="16" height="16" />
+                  <ListIcon width={isMobile ? "15" : "16"} height={isMobile ? "15" : "16"} />
                 </button>
               </div>
 
-              <div className="divider" style={{ width: '1px', height: '20px', background: 'var(--border)' }} />
+              <div className={`divider ${isMobile ? 'sort-divider-mobile' : ''}`} style={{ width: '1px', height: '20px', background: 'var(--border)' }} />
 
-              <div className="sort-items" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className={`sort-items ${isMobile ? 'sort-items-mobile' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button
                   type="button"
-                  className="icon-button"
+                  className={`icon-button ${isMobile ? 'mobile-sort-setting-trigger' : ''}`}
                   onClick={() => setSortSettingOpen(true)}
                   style={{
                     border: 'none',
@@ -4130,15 +4278,15 @@ export default function HomePage() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 4,
-                    fontSize: '12px',
+                    fontSize: isMobile ? '11px' : '12px',
                     color: 'var(--muted-foreground)',
                     cursor: 'pointer',
-                    width: '50px',
+                    width: isMobile ? '40px' : '50px',
                   }}
                   title="排序个性化设置"
                 >
-                  <span className="muted">排序</span>
-                  <SettingsIcon width="14" height="14" />
+                  {!isMobile && <span className="muted">排序</span>}
+                  <SettingsIcon width={isMobile ? "15" : "14"} height={isMobile ? "15" : "14"} />
                 </button>
                 {sortDisplayMode === 'dropdown' ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -4180,7 +4328,7 @@ export default function HomePage() {
                     </Select>
                   </div>
                 ) : (
-                  <div className="chips">
+                  <div className={`chips ${isMobile ? 'mobile-sort-chips' : ''}`}>
                     {sortRules.filter((s) => s.enabled).map((s) => (
                       <button
                         key={s.id}
@@ -4217,6 +4365,7 @@ export default function HomePage() {
                 )}
               </div>
             </div>
+            )}
           </div>
 
           {displayFunds.length === 0 ? (
@@ -4227,7 +4376,8 @@ export default function HomePage() {
             />
           ) : (
             <>
-              <GroupSummary
+              {!isMobile && (
+                <GroupSummary
                   funds={displayFunds}
                   holdings={holdings}
                   groupName={getGroupName()}
@@ -4239,8 +4389,11 @@ export default function HomePage() {
                   onToggleMasked={() => setMaskAmounts((v) => !v)}
                   marketIndexAccordionHeight={marketIndexAccordionHeight}
                   navbarHeight={navbarHeight}
+                  isMobile={isMobile}
                 />
+              )}
 
+              {!isIntegratedMobileListView && (
               <AnimatePresence mode="wait">
                 <motion.div
                   key={viewMode}
@@ -4248,8 +4401,8 @@ export default function HomePage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
-                  className={viewMode === 'card' ? 'grid' : 'table-container glass'}
-                  style={{ marginTop: isGroupSummarySticky ? 50 : 0 }}
+                  className={viewMode === 'card' ? 'grid' : isMobile ? 'table-container mobile-table-shell' : 'table-container glass'}
+                  style={{ marginTop: isMobile ? 0 : (isGroupSummarySticky ? 50 : 0) }}
                 >
                   <div className={viewMode === 'card' ? 'grid col-12' : ''} style={viewMode === 'card' ? { gridColumn: 'span 12', gap: 16 } : {}}>
                     {/* PC 列表：使用 PcFundTable + 右侧冻结操作列 */}
@@ -4276,7 +4429,7 @@ export default function HomePage() {
                                 }}
                                 onRemoveFromGroup={(row) => {
                                   if (!row || !row.code) return;
-                                  removeFundFromCurrentGroup(row.code);
+                                  requestRemoveFundFromCurrentGroup({ code: row.code, name: row.fundName });
                                 }}
                                 onHoldingAmountClick={(row, meta) => {
                                   if (!row || !row.code) return;
@@ -4294,7 +4447,7 @@ export default function HomePage() {
                                 }}
                                 onCustomSettingsChange={triggerCustomSettingsSync}
                                 closeDialogRef={fundDetailDialogCloseRef}
-                                blockDialogClose={!!fundDeleteConfirm}
+                                blockDialogClose={!!fundDeleteConfirm || !!groupFundRemoveConfirm}
                                 masked={maskAmounts}
                                 getFundCardProps={(row) => {
                                   const fund = row?.rawFund || (row ? { code: row.code, name: row.fundName } : null);
@@ -4315,7 +4468,7 @@ export default function HomePage() {
                                     isTradingDay,
                                     refreshing,
                                     getHoldingProfit,
-                                    onRemoveFromGroup: removeFundFromCurrentGroup,
+                                    onRemoveFromGroup: requestRemoveFundFromCurrentGroup,
                                     onToggleFavorite: toggleFavorite,
                                     onRemoveFund: requestRemoveFund,
                                     onHoldingClick: (f) => setHoldingModal({ open: true, fund: f }),
@@ -4332,80 +4485,6 @@ export default function HomePage() {
                             </div>
                           </div>
                         </div>
-                    )}
-                    {viewMode === 'list' && isMobile && (
-                      <MobileFundTable
-                        data={pcFundTableData}
-                        refreshing={refreshing}
-                        currentTab={currentTab}
-                        favorites={favorites}
-                        sortBy={sortBy}
-                        stickyTop={navbarHeight + filterBarHeight + marketIndexAccordionHeight}
-                        blockDrawerClose={!!fundDeleteConfirm}
-                        closeDrawerRef={fundDetailDrawerCloseRef}
-                        onReorder={handleReorder}
-                        onRemoveFund={(row) => {
-                          if (refreshing) return;
-                          if (!row || !row.code) return;
-                          requestRemoveFund({ code: row.code, name: row.fundName });
-                        }}
-                        onToggleFavorite={(row) => {
-                          if (!row || !row.code) return;
-                          toggleFavorite(row.code);
-                        }}
-                        onRemoveFromGroup={(row) => {
-                          if (!row || !row.code) return;
-                          removeFundFromCurrentGroup(row.code);
-                        }}
-                        onHoldingAmountClick={(row, meta) => {
-                          if (!row || !row.code) return;
-                          const fund = row.rawFund || { code: row.code, name: row.fundName };
-                          if (meta?.hasHolding) {
-                            setActionModal({ open: true, fund });
-                          } else {
-                            setHoldingModal({ open: true, fund });
-                          }
-                        }}
-                        onHoldingProfitClick={(row) => {
-                          if (!row || !row.code) return;
-                          if (row.holdingProfitValue == null) return;
-                          setPercentModes((prev) => ({ ...prev, [row.code]: !prev[row.code] }));
-                        }}
-                        onCustomSettingsChange={triggerCustomSettingsSync}
-                        getFundCardProps={(row) => {
-                          const fund = row?.rawFund || (row ? { code: row.code, name: row.fundName } : null);
-                          if (!fund) return {};
-                          return {
-                            fund,
-                            todayStr,
-                            currentTab,
-                            favorites,
-                            dcaPlans,
-                            holdings,
-                            percentModes,
-                            valuationSeries,
-                            collapsedCodes,
-                            collapsedTrends,
-                            transactions,
-                            theme,
-                            isTradingDay,
-                            refreshing,
-                            getHoldingProfit,
-                            onRemoveFromGroup: removeFundFromCurrentGroup,
-                            onToggleFavorite: toggleFavorite,
-                            onRemoveFund: requestRemoveFund,
-                            onHoldingClick: (f) => setHoldingModal({ open: true, fund: f }),
-                            onActionClick: (f) => setActionModal({ open: true, fund: f }),
-                            onPercentModeToggle: (code) =>
-                              setPercentModes((prev) => ({ ...prev, [code]: !prev[code] })),
-                            onToggleCollapse: toggleCollapse,
-                            onToggleTrendCollapse: toggleTrendCollapse,
-                            masked: maskAmounts,
-                            layoutMode: 'drawer',
-                          };
-                        }}
-                        masked={maskAmounts}
-                      />
                     )}
                     <AnimatePresence mode="popLayout">
                       {viewMode === 'card' && displayFunds.map((f) => (
@@ -4435,7 +4514,7 @@ export default function HomePage() {
                               isTradingDay={isTradingDay}
                               refreshing={refreshing}
                               getHoldingProfit={getHoldingProfit}
-                              onRemoveFromGroup={removeFundFromCurrentGroup}
+                              onRemoveFromGroup={requestRemoveFundFromCurrentGroup}
                               onToggleFavorite={toggleFavorite}
                               onRemoveFund={requestRemoveFund}
                               onHoldingClick={(fund) => setHoldingModal({ open: true, fund })}
@@ -4453,6 +4532,92 @@ export default function HomePage() {
                   </div>
                 </motion.div>
               </AnimatePresence>
+              )}
+
+              {isIntegratedMobileListView && (
+                <div className="mobile-list-shell">
+                  <MobileFundTable
+                    data={pcFundTableData}
+                    refreshing={refreshing}
+                    currentTab={currentTab}
+                    favorites={favorites}
+                    sortBy={sortBy}
+                    sortOrder={sortOrder}
+                    onSortChange={(nextSortBy, nextSortOrder) => {
+                      setSortBy(nextSortBy);
+                      setSortOrder(nextSortOrder);
+                    }}
+                    stickyTop={navbarHeight + filterBarHeight}
+                    blockDrawerClose={!!fundDeleteConfirm || !!groupFundRemoveConfirm}
+                    closeDrawerRef={fundDetailDrawerCloseRef}
+                    onReorder={handleReorder}
+                    viewMode={viewMode}
+                    onViewModeChange={applyViewMode}
+                    scrollSyncRef={mobileTableScrollSyncRef}
+                    onRemoveFund={(row) => {
+                      if (refreshing) return;
+                      if (!row || !row.code) return;
+                      requestRemoveFund({ code: row.code, name: row.fundName });
+                    }}
+                    onToggleFavorite={(row) => {
+                      if (!row || !row.code) return;
+                      toggleFavorite(row.code);
+                    }}
+                    onRemoveFromGroup={(row) => {
+                      if (!row || !row.code) return;
+                      requestRemoveFundFromCurrentGroup({ code: row.code, name: row.fundName });
+                    }}
+                    onHoldingAmountClick={(row, meta) => {
+                      if (!row || !row.code) return;
+                      const fund = row.rawFund || { code: row.code, name: row.fundName };
+                      if (meta?.hasHolding) {
+                        setActionModal({ open: true, fund });
+                      } else {
+                        setHoldingModal({ open: true, fund });
+                      }
+                    }}
+                    onHoldingProfitClick={(row) => {
+                      if (!row || !row.code) return;
+                      if (row.holdingProfitValue == null) return;
+                      setPercentModes((prev) => ({ ...prev, [row.code]: !prev[row.code] }));
+                    }}
+                    onCustomSettingsChange={triggerCustomSettingsSync}
+                    getFundCardProps={(row) => {
+                      const fund = row?.rawFund || (row ? { code: row.code, name: row.fundName } : null);
+                      if (!fund) return {};
+                      return {
+                        fund,
+                        todayStr,
+                        currentTab,
+                        favorites,
+                        dcaPlans,
+                        holdings,
+                        percentModes,
+                        valuationSeries,
+                        collapsedCodes,
+                        collapsedTrends,
+                        transactions,
+                        theme,
+                        isTradingDay,
+                        refreshing,
+                        getHoldingProfit,
+                        onRemoveFromGroup: requestRemoveFundFromCurrentGroup,
+                        onToggleFavorite: toggleFavorite,
+                        onRemoveFund: requestRemoveFund,
+                        onHoldingClick: (f) => setHoldingModal({ open: true, fund: f }),
+                        onActionClick: (f) => setActionModal({ open: true, fund: f }),
+                        onPercentModeToggle: (code) =>
+                          setPercentModes((prev) => ({ ...prev, [code]: !prev[code] })),
+                        onToggleCollapse: toggleCollapse,
+                        onToggleTrendCollapse: toggleTrendCollapse,
+                        masked: maskAmounts,
+                        layoutMode: 'drawer',
+                      };
+                    }}
+                    masked={maskAmounts}
+                  />
+                </div>
+              )}
 
               {currentTab !== 'all' && currentTab !== 'fav' && (
                 <motion.button
@@ -4510,6 +4675,25 @@ export default function HomePage() {
               setFundDeleteConfirm(null);
             }}
             onCancel={() => setFundDeleteConfirm(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {groupFundRemoveConfirm && (
+          <ConfirmModal
+            title="移出分组确认"
+            message={`确定将基金 "${groupFundRemoveConfirm.name}" 从「${groupFundRemoveConfirm.groupName}」移出吗？`}
+            icon={<ExitIcon width="20" height="20" className="shrink-0 text-[var(--primary)]" style={{ transform: 'rotate(180deg)' }} />}
+            confirmText="确认移出"
+            confirmVariant="primary"
+            onConfirm={() => {
+              fundDetailDrawerCloseRef.current?.();
+              fundDetailDialogCloseRef.current?.();
+              removeFundFromCurrentGroup(groupFundRemoveConfirm.code);
+              setGroupFundRemoveConfirm(null);
+            }}
+            onCancel={() => setGroupFundRemoveConfirm(null)}
           />
         )}
       </AnimatePresence>

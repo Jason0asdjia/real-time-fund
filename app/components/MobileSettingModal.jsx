@@ -2,13 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AnimatePresence, Reorder } from 'framer-motion';
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerClose,
-} from '@/components/ui/drawer';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import ConfirmModal from './ConfirmModal';
 import { CloseIcon, DragIcon, ResetIcon, SettingsIcon } from './Icons';
@@ -53,35 +47,43 @@ export default function MobileSettingModal({
 
   return (
     <>
-      <Drawer
+      <Dialog
         open={open}
         onOpenChange={(v) => {
           if (!v) onClose();
         }}
-        direction="bottom"
-        handleOnly={isReordering}
       >
-        <DrawerContent
-          className="glass"
-          defaultHeight="77vh"
-          minHeight="40vh"
-          maxHeight="90vh"
+        <DialogContent
+          overlayClassName="modal-overlay z-[9999]"
+          className="glass z-[10000]"
+          showCloseButton={false}
+          style={{
+            width: 'min(92vw, 560px)',
+            maxWidth: '560px',
+            maxHeight: 'min(78vh, 760px)',
+            padding: 0,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
         >
-          <DrawerHeader className="mobile-setting-header flex-row items-center justify-between gap-2 py-5 pt-5 text-base font-semibold">
-            <DrawerTitle className="flex items-center gap-2.5 text-left">
+          <div className="mobile-setting-header flex flex-row items-center justify-between gap-2 px-5 py-5 text-base font-semibold">
+            <DialogTitle className="flex items-center gap-2.5 text-left">
               <SettingsIcon width="20" height="20" />
               <span>个性化设置</span>
-            </DrawerTitle>
-            <DrawerClose
+            </DialogTitle>
+            <button
+              type="button"
               className="icon-button border-none bg-transparent p-1"
+              onClick={onClose}
               title="关闭"
               style={{ borderColor: 'transparent', backgroundColor: 'transparent' }}
             >
               <CloseIcon width="20" height="20" />
-            </DrawerClose>
-          </DrawerHeader>
+            </button>
+          </div>
 
-          <div className="mobile-setting-body flex flex-1 flex-col overflow-y-auto">
+          <div className="mobile-setting-body flex flex-1 flex-col overflow-y-auto px-5 pb-5" style={{ minHeight: 0 }}>
             {onToggleShowFullFundName && (
               <div
                 style={{
@@ -208,8 +210,8 @@ export default function MobileSettingModal({
               </Reorder.Group>
             )}
           </div>
-        </DrawerContent>
-      </Drawer>
+        </DialogContent>
+      </Dialog>
 
       <AnimatePresence>
         {resetConfirmOpen && (

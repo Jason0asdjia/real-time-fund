@@ -212,6 +212,12 @@ export default function MarketIndexAccordion({
   useEffect(() => {
     const el = rootRef.current;
     if (!el || typeof onHeightChange !== 'function') return;
+    if (isMobile) {
+      onHeightChange(0);
+      return () => {
+        onHeightChange(0);
+      };
+    }
     const ro = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry) onHeightChange(entry.contentRect.height);
@@ -222,7 +228,7 @@ export default function MarketIndexAccordion({
       ro.disconnect();
       onHeightChange(0);
     };
-  }, [onHeightChange, loading, indices.length]);
+  }, [onHeightChange, loading, indices.length, isMobile]);
 
   const loadIndices = () => {
     let cancelled = false;
@@ -297,7 +303,7 @@ export default function MarketIndexAccordion({
     } catch {
       // ignore
     }
-  }, [selectedCodes]);
+  }, [selectedCodes, onCustomSettingsChange]);
   // 用户已选择的指数列表（按 selectedCodes 顺序）
   const visibleIndices = selectedCodes.length
     ? selectedCodes
@@ -332,20 +338,27 @@ export default function MarketIndexAccordion({
   const colorClass = isUp ? 'text-[var(--danger)]' : 'text-[var(--success)]';
 
   const topMargin = Number(navbarHeight) || 0;
-  const stickyStyle = {
-    marginTop: topMargin,
-    position: 'sticky',
-    top: topMargin,
-    zIndex: 10,
-    width: isMobile ? 'calc(100% + 24px)' : '100%',
-    marginLeft: isMobile ? -12 : 0,
-  };
+  const stickyStyle = isMobile
+    ? {
+        position: 'fixed',
+        left: 10,
+        right: 10,
+        bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))',
+        zIndex: 55,
+      }
+    : {
+        marginTop: topMargin,
+        position: 'sticky',
+        top: topMargin,
+        zIndex: 10,
+        width: '100%',
+      };
 
   if (loading && indices.length === 0) {
     return (
       <div
         ref={rootRef}
-        className="market-index-accordion-root mt-2 mb-2 rounded-lg border border-[var(--border)] bg-[var(--card)] px-4 py-3 flex items-center justify-between"
+        className={`market-index-accordion-root ${isMobile ? 'market-index-mobile-shell' : 'mt-2 mb-2 rounded-lg'} border border-[var(--border)] bg-[var(--card)] px-4 py-3 flex items-center justify-between`}
         style={stickyStyle}
       >
         <span className="text-sm text-[var(--muted-foreground)]">加载大盘指数…</span>
@@ -356,7 +369,7 @@ export default function MarketIndexAccordion({
   return (
     <div
       ref={rootRef}
-      className="market-index-accordion-root mt-2 mb-2 rounded-lg border border-[var(--border)] bg-[var(--card)] market-index-accordion"
+      className={`market-index-accordion-root market-index-accordion ${isMobile ? 'market-index-mobile-shell' : 'mt-2 mb-2 rounded-lg'} border border-[var(--border)] bg-[var(--card)]`}
       style={stickyStyle}
     >
       <style jsx>{`
@@ -374,6 +387,8 @@ export default function MarketIndexAccordion({
           align-items: center;
           gap: 0.75rem;
           animation: market-index-ticker-slide 0.35s ease-out;
+          min-width: 0;
+          white-space: nowrap;
         }
         @keyframes market-index-ticker-slide {
           0% {
@@ -394,26 +409,28 @@ export default function MarketIndexAccordion({
       >
         <AccordionItem value="indices" className="border-b-0">
           <AccordionTrigger
-            className="py-3 px-4 hover:no-underline hover:bg-[var(--card)] [&[data-state=open]>svg]:rotate-90"
+            className={isMobile
+              ? 'px-3 py-2.5 hover:no-underline hover:bg-[var(--card)] [&[data-state=open]>svg]:rotate-90'
+              : 'py-3 px-4 hover:no-underline hover:bg-[var(--card)] [&[data-state=open]>svg]:rotate-90'}
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
           >
-            <div className="flex flex-1 items-center gap-3 min-w-0">
+            <div className="flex flex-1 items-center gap-3 min-w-0 overflow-hidden">
               {current ? (
-                <div className="market-index-ticker">
+                <div className="market-index-ticker min-w-0">
                   <div
                     key={current.code || current.name}
                     className="market-index-ticker-item"
                   >
-                    <span className="text-sm font-medium text-[var(--foreground)] shrink-0">
+                    <span className={`font-medium text-[var(--foreground)] shrink-0 ${isMobile ? 'text-[13px]' : 'text-sm'}`}>
                       {current.name}
                     </span>
-                    <span className={cn('tabular-nums font-medium', colorClass)}>
+                    <span className={cn(`tabular-nums font-medium ${isMobile ? 'text-[13px]' : ''}`, colorClass)}>
                       {current.price.toFixed(2)}
                     </span>
-                    <span className={cn('tabular-nums text-sm', colorClass)}>
+                    <span className={cn(`tabular-nums ${isMobile ? 'text-[13px]' : 'text-sm'}`, colorClass)}>
                       {(current.change >= 0 ? '+' : '') + current.change.toFixed(2)}
                     </span>
-                    <span className={cn('tabular-nums text-sm', colorClass)}>
+                    <span className={cn(`tabular-nums ${isMobile ? 'text-[13px]' : 'text-sm'}`, colorClass)}>
                       {(current.changePercent >= 0 ? '+' : '') + current.changePercent.toFixed(2)}%
                     </span>
                   </div>
@@ -422,7 +439,7 @@ export default function MarketIndexAccordion({
                 <span className="text-sm text-[var(--muted-foreground)]">暂无指数数据</span>
               )}
             </div>
-            <div className="flex items-center gap-4 shrink-0 pl-3">
+            <div className={`flex items-center shrink-0 ${isMobile ? 'gap-2 pl-2' : 'gap-4 pl-3'}`}>
               <div
                 role="button"
                 tabIndex={openValue === 'indices' ? 0 : -1}
@@ -459,24 +476,24 @@ export default function MarketIndexAccordion({
               </div>
               <ChevronRightIcon
                 className={cn(
-                  'w-4 h-4 text-[var(--muted-foreground)] transition-transform',
+                  `${isMobile ? 'w-[18px] h-[18px]' : 'w-4 h-4'} text-[var(--muted-foreground)] transition-transform`,
                   openValue === 'indices' ? 'rotate-90' : ''
                 )}
                 aria-hidden="true"
               />
             </div>
           </AccordionTrigger>
-          <AccordionContent className="px-3 pb-4 pt-0">
+          <AccordionContent className={isMobile ? 'px-3 pb-3 pt-0' : 'px-3 pb-4 pt-0'}>
             <div
               className="flex flex-wrap w-full min-w-0"
-              style={{ gap: 12 }}
+              style={{ gap: isMobile ? 8 : 12 }}
             >
               {visibleIndices.map((item, i) => (
                 <div
                   key={item.code || i}
                   style={{
                     flex: isMobile
-                      ? '0 0 calc((100% - 24px) / 3)'
+                      ? '0 0 calc((100% - 8px) / 2)'
                       : '0 0 calc((100% - 48px) / 5)',
                   }}
                 >

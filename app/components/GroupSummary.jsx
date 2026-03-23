@@ -73,11 +73,15 @@ export default function GroupSummary({
   masked,
   onToggleMasked,
   marketIndexAccordionHeight,
-  navbarHeight
+  navbarHeight,
+  isMobile = false,
+  mobileInline = false,
+  onHeightChange,
 }) {
   const [showPercent, setShowPercent] = useState(true);
   const [isMasked, setIsMasked] = useState(masked ?? false);
   const rowRef = useRef(null);
+  const rootRef = useRef(null);
   const [assetSize, setAssetSize] = useState(24);
   const [metricSize, setMetricSize] = useState(18);
   const [winW, setWinW] = useState(0);
@@ -182,15 +186,170 @@ export default function GroupSummary({
 
   const style = useMemo(()=>{
     const style = {};
-    if (isSticky) {
+    if (mobileInline) {
+      return style;
+    }
+    if (isMobile) {
+      style.top = stickyTop + 6;
+      style.marginBottom = 10;
+    } else if (isSticky) {
       style.top = stickyTop + 14;
     }else if(!marketIndexAccordionHeight) {
       style.marginTop = navbarHeight;
     }
     return style;
-  },[isSticky, stickyTop, marketIndexAccordionHeight, navbarHeight])
+  },[isMobile, mobileInline, isSticky, stickyTop, marketIndexAccordionHeight, navbarHeight])
+
+  useEffect(() => {
+    if (!mobileInline || typeof onHeightChange !== 'function') return;
+    const el = rootRef.current;
+    if (!el) return;
+
+    const updateHeight = () => onHeightChange(el.getBoundingClientRect().height);
+    updateHeight();
+
+    const ro = new ResizeObserver(() => updateHeight());
+    ro.observe(el);
+
+    return () => {
+      ro.disconnect();
+      onHeightChange(0);
+    };
+  }, [mobileInline, onHeightChange, summary.totalAsset, summary.totalProfitToday, summary.totalHoldingReturn, showPercent, isMasked]);
 
   if (!summary.hasHolding) return null;
+
+  if (isMobile) {
+    return (
+      <div
+        ref={rootRef}
+        className={mobileInline ? 'group-summary-mobile-inline' : 'group-summary-sticky group-summary-mobile-sticky'}
+        style={style}
+      >
+        <div className={mobileInline ? 'group-summary-mobile-strip group-summary-mobile-strip-inline' : 'group-summary-card group-summary-mobile-strip'}>
+          <div className="group-summary-mobile-head">
+            <div className="group-summary-mobile-title">
+              <span className="muted">{groupName}</span>
+              <button
+                className="fav-button"
+                onClick={() => {
+                  if (onToggleMasked) {
+                    onToggleMasked();
+                  } else {
+                    setIsMasked((value) => !value);
+                  }
+                }}
+                aria-label={isMasked ? '显示资产' : '隐藏资产'}
+                style={{ margin: 0, padding: 2, display: 'inline-flex', alignItems: 'center' }}
+              >
+                {isMasked ? (
+                  <EyeOffIcon width="16" height="16" />
+                ) : (
+                  <EyeIcon width="16" height="16" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="group-summary-mobile-grid">
+            <div className="group-summary-mobile-metric group-summary-mobile-metric-main">
+              <div className="group-summary-mobile-label">{mobileInline ? '全部资产' : '总资产'}</div>
+              <div className="group-summary-mobile-value group-summary-mobile-asset">
+                <span style={{ fontSize: '13px', marginRight: 2 }}>¥</span>
+                {isMasked ? (
+                  <span className="mask-text">******</span>
+                ) : (
+                  <CountUp value={summary.totalAsset} style={{ fontSize: assetSize }} />
+                )}
+              </div>
+            </div>
+
+            <div className="group-summary-mobile-metric">
+              <div className="group-summary-mobile-label">当日收益</div>
+              <div
+                className={
+                  summary.hasAnyTodayData
+                    ? summary.totalProfitToday > 0
+                      ? 'up group-summary-mobile-value'
+                      : summary.totalProfitToday < 0
+                        ? 'down group-summary-mobile-value'
+                        : 'group-summary-mobile-value'
+                    : 'muted group-summary-mobile-value'
+                }
+              >
+                {isMasked ? (
+                  <span className="mask-text">******</span>
+                ) : summary.hasAnyTodayData ? (
+                  <>
+                    <span style={{ marginRight: 1 }}>
+                      {summary.totalProfitToday > 0
+                        ? '+'
+                        : summary.totalProfitToday < 0
+                          ? '-'
+                          : ''}
+                    </span>
+                    <CountUp
+                      value={Math.abs(summary.totalProfitToday)}
+                      style={{ fontSize: metricSize }}
+                    />
+                  </>
+                ) : (
+                  '--'
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="group-summary-mobile-metric group-summary-mobile-switcher"
+              onClick={() => setShowPercent(!showPercent)}
+              title="点击切换金额/百分比"
+            >
+              <div className="group-summary-mobile-label">
+                持有收益{showPercent ? '(%)' : ''}
+                <SwitchIcon style={{ opacity: 0.4 }} />
+              </div>
+              <div
+                className={
+                  summary.totalHoldingReturn > 0
+                    ? 'up group-summary-mobile-value'
+                    : summary.totalHoldingReturn < 0
+                      ? 'down group-summary-mobile-value'
+                      : 'group-summary-mobile-value'
+                }
+              >
+                {isMasked ? (
+                  <span className="mask-text">******</span>
+                ) : (
+                  <>
+                    <span style={{ marginRight: 1 }}>
+                      {summary.totalHoldingReturn > 0
+                        ? '+'
+                        : summary.totalHoldingReturn < 0
+                          ? '-'
+                          : ''}
+                    </span>
+                    {showPercent ? (
+                      <CountUp
+                        value={Math.abs(summary.returnRate)}
+                        suffix="%"
+                        style={{ fontSize: metricSize }}
+                      />
+                    ) : (
+                      <CountUp
+                        value={Math.abs(summary.totalHoldingReturn)}
+                        style={{ fontSize: metricSize }}
+                      />
+                    )}
+                  </>
+                )}
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

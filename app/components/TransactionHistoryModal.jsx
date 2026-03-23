@@ -61,16 +61,14 @@ export default function TransactionHistoryModal({
     <Dialog open onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="glass card modal tx-history-modal"
-        overlayClassName="modal-overlay"
-        overlayStyle={{ zIndex: 998 }}
+        className="glass card modal tx-history-modal !z-[12010]"
+        overlayClassName="!z-[12000]"
         style={{
           maxWidth: '480px',
           width: '90vw',
           maxHeight: '80vh',
           display: 'flex',
           flexDirection: 'column',
-          zIndex: 999, // 保持原有层级，确保在其他弹框之上
         }}
       >
         <DialogTitle className="sr-only">交易记录</DialogTitle>

@@ -3,13 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
 import { createPortal } from "react-dom";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerClose,
-} from "@/components/ui/drawer";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { CloseIcon, DragIcon, ResetIcon, SettingsIcon } from "./Icons";
 import ConfirmModal from "./ConfirmModal";
@@ -476,26 +470,35 @@ export default function SortSettingModal({
 
   if (isMobile) {
     return (
-      <Drawer
+      <Dialog
         open={open}
         onOpenChange={(v) => {
           if (!v) onClose?.();
         }}
-        direction="bottom"
       >
-        <DrawerContent
-          className="glass"
-          defaultHeight="70vh"
-          minHeight="40vh"
-          maxHeight="90vh"
+        <DialogContent
+          overlayClassName="modal-overlay z-[9999]"
+          className="glass z-[10000]"
+          showCloseButton={false}
+          style={{
+            width: "min(92vw, 560px)",
+            maxWidth: "560px",
+            maxHeight: "min(78vh, 760px)",
+            padding: 0,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
         >
-          <DrawerHeader className="flex flex-row items-center justify-between gap-2 py-4">
-            <DrawerTitle className="flex items-center gap-2.5 text-left">
+          <div className="flex flex-row items-center justify-between gap-2 px-5 py-4">
+            <DialogTitle className="flex items-center gap-2.5 text-left">
               <SettingsIcon width="20" height="20" />
               <span>排序个性化设置</span>
-            </DrawerTitle>
-            <DrawerClose
+            </DialogTitle>
+            <button
+              type="button"
               className="icon-button border-none bg-transparent p-1"
+              onClick={onClose}
               title="关闭"
               style={{
                 borderColor: "transparent",
@@ -503,12 +506,12 @@ export default function SortSettingModal({
               }}
             >
               <CloseIcon width="20" height="20" />
-            </DrawerClose>
-          </DrawerHeader>
-          <div className="flex-1 overflow-y-auto">{body}</div>
-        </DrawerContent>
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 pb-5" style={{ minHeight: 0 }}>{body}</div>
+        </DialogContent>
         {resetConfirm}
-      </Drawer>
+      </Dialog>
     );
   }
 

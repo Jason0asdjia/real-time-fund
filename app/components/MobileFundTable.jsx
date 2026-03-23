@@ -1,7 +1,6 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import ReactDOM from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   flexRender,
@@ -23,7 +22,6 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { throttle } from 'lodash';
 import FitText from './FitText';
 import MobileFundCardDrawer from './MobileFundCardDrawer';
 import MobileSettingModal from './MobileSettingModal';
@@ -73,21 +71,16 @@ function SortableRow({ row, children, isTableDragging, disabled }) {
   };
 
   return (
-    <motion.div
+    <div
       ref={setNodeRef}
       className="table-row-wrapper"
-      layout={isTableDragging ? undefined : 'position'}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
       style={{ ...style, position: 'relative' }}
       {...attributes}
     >
       <RowSortableContext.Provider value={{ setActivatorNodeRef, listeners }}>
         {typeof children === 'function' ? children(setActivatorNodeRef, listeners) : children}
       </RowSortableContext.Provider>
-    </motion.div>
+    </div>
   );
 }
 
@@ -119,13 +112,18 @@ export default function MobileFundTable({
   onHoldingProfitClick, // 保留以兼容调用方，表格内已不再使用点击切换
   refreshing = false,
   sortBy = 'default',
+  sortOrder = 'desc',
+  onSortChange,
   onReorder,
   onCustomSettingsChange,
   stickyTop = 0,
+  viewMode = 'list',
+  onViewModeChange,
   getFundCardProps,
   blockDrawerClose = false,
   closeDrawerRef,
   masked = false,
+  scrollSyncRef,
 }) {
   const [isNameSortMode, setIsNameSortMode] = useState(false);
 
@@ -313,6 +311,39 @@ export default function MobileFundTable({
 
   const [settingModalOpen, setSettingModalOpen] = useState(false);
 
+  const toggleSort = (nextSortBy) => {
+    if (!onSortChange || !nextSortBy) return;
+    if (sortBy !== nextSortBy) {
+      onSortChange(nextSortBy, 'desc');
+      return;
+    }
+    if (sortOrder === 'desc') {
+      onSortChange(nextSortBy, 'asc');
+      return;
+    }
+    onSortChange('default', 'desc');
+  };
+
+  const renderSortLabel = (label, sortKey, align = 'left') => {
+    const active = sortBy === sortKey;
+    return (
+      <button
+        type="button"
+        className={`mobile-header-sort ${active ? 'active' : ''} ${align === 'right' ? 'align-right' : ''}`}
+        onClick={(e) => {
+          e.stopPropagation?.();
+          toggleSort(sortKey);
+        }}
+      >
+        <span>{label}</span>
+        <span className="mobile-header-sort-arrows" aria-hidden="true">
+          <span style={{ opacity: active && sortOrder === 'asc' ? 1 : 0.32 }}>▲</span>
+          <span style={{ opacity: active && sortOrder === 'desc' ? 1 : 0.32 }}>▼</span>
+        </span>
+      </button>
+    );
+  };
+
   useEffect(() => {
     if (sortBy !== 'default') setIsNameSortMode(false);
   }, [sortBy]);
@@ -327,11 +358,9 @@ export default function MobileFundTable({
 
   const [cardSheetRow, setCardSheetRow] = useState(null);
   const tableContainerRef = useRef(null);
-  const portalHeaderRef = useRef(null);
+  const suppressHorizontalSyncRef = useRef(false);
   const [tableContainerWidth, setTableContainerWidth] = useState(0);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [showPortalHeader, setShowPortalHeader] = useState(false);
-  const [effectiveStickyTop, setEffectiveStickyTop] = useState(stickyTop);
 
   useEffect(() => {
     const el = tableContainerRef.current;
@@ -344,62 +373,16 @@ export default function MobileFundTable({
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const getEffectiveStickyTop = () => {
-      const stickySummaryCard = document.querySelector('.group-summary-sticky .group-summary-card');
-      if (!stickySummaryCard) return stickyTop;
-
-      const stickySummaryWrapper = stickySummaryCard.closest('.group-summary-sticky');
-      if (!stickySummaryWrapper) return stickyTop;
-
-      const wrapperRect = stickySummaryWrapper.getBoundingClientRect();
-      // 用“实际 DOM 的 top”判断 sticky 是否已生效，避免 mobile 下 stickyTop 入参与 GroupSummary 不一致导致的偏移。
-      const computedTopStr = window.getComputedStyle(stickySummaryWrapper).top;
-      const computedTop = Number.parseFloat(computedTopStr);
-      const baseTop = Number.isFinite(computedTop) ? computedTop : stickyTop;
-      const isSummaryStuck = wrapperRect.top <= baseTop + 1;
-
-      // header 使用固定定位(top)，所以也用视口坐标系下的 wrapperRect.top + 高度，确保不重叠
-      return isSummaryStuck ? wrapperRect.top + stickySummaryWrapper.offsetHeight : stickyTop;
-    };
-
-    const updateVerticalState = () => {
-      const nextStickyTop = getEffectiveStickyTop();
-      setEffectiveStickyTop((prev) => (prev === nextStickyTop ? prev : nextStickyTop));
-
-      const tableEl = tableContainerRef.current;
-      const tableRect = tableEl?.getBoundingClientRect();
-      if (!tableRect) {
-        setShowPortalHeader(window.scrollY >= nextStickyTop);
-        return;
-      }
-
-      const headerEl = tableEl?.querySelector('.table-header-row');
-      const headerHeight = headerEl?.getBoundingClientRect?.().height ?? 0;
-      const hasPassedHeader = (tableRect.top + headerHeight) <= nextStickyTop;
-      const hasTableInView = tableRect.bottom > nextStickyTop;
-
-      setShowPortalHeader(hasPassedHeader && hasTableInView);
-    };
-
-    const throttledVerticalUpdate = throttle(updateVerticalState, 1000/60, { leading: true, trailing: true });
-
-    updateVerticalState();
-    window.addEventListener('scroll', throttledVerticalUpdate, { passive: true });
-    window.addEventListener('resize', throttledVerticalUpdate, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', throttledVerticalUpdate);
-      window.removeEventListener('resize', throttledVerticalUpdate);
-      throttledVerticalUpdate.cancel();
-    };
-  }, [stickyTop]);
-
-  useEffect(() => {
     const tableEl = tableContainerRef.current;
     if (!tableEl) return;
 
     const handleScroll = () => {
       setIsScrolled(tableEl.scrollLeft > 0);
+      if (suppressHorizontalSyncRef.current || !scrollSyncRef?.current) return;
+      scrollSyncRef.current.scrollLeft = tableEl.scrollLeft;
+      scrollSyncRef.current.listeners.forEach((listener) => {
+        listener(tableEl.scrollLeft);
+      });
     };
 
     handleScroll();
@@ -408,34 +391,32 @@ export default function MobileFundTable({
     return () => {
       tableEl.removeEventListener('scroll', handleScroll);
     };
-  }, []);
+  }, [scrollSyncRef]);
 
   useEffect(() => {
     const tableEl = tableContainerRef.current;
-    const portalEl = portalHeaderRef.current;
-    if (!tableEl || !portalEl) return;
+    if (!tableEl || !scrollSyncRef?.current) return;
 
-    const syncScrollToPortal = () => {
-      portalEl.scrollLeft = tableEl.scrollLeft;
+    const applyScrollLeft = (nextScrollLeft) => {
+      if (Math.abs(tableEl.scrollLeft - nextScrollLeft) <= 1) return;
+      suppressHorizontalSyncRef.current = true;
+      tableEl.scrollLeft = nextScrollLeft;
+      requestAnimationFrame(() => {
+        suppressHorizontalSyncRef.current = false;
+      });
     };
 
-    const syncScrollToTable = () => {
-      tableEl.scrollLeft = portalEl.scrollLeft;
-    };
-
-    syncScrollToPortal();
-
-    const handleTableScroll = () => syncScrollToPortal();
-    const handlePortalScroll = () => syncScrollToTable();
-
-    tableEl.addEventListener('scroll', handleTableScroll, { passive: true });
+    scrollSyncRef.current.listeners.add(applyScrollLeft);
+    if (typeof scrollSyncRef.current.scrollLeft === 'number') {
+      applyScrollLeft(scrollSyncRef.current.scrollLeft);
+    }
 
     return () => {
-      tableEl.removeEventListener('scroll', handleTableScroll);
+      scrollSyncRef.current?.listeners?.delete(applyScrollLeft);
     };
-  }, [showPortalHeader]);
+  }, [scrollSyncRef]);
 
-  const NAME_CELL_WIDTH = 140;
+  const NAME_CELL_WIDTH = 148;
   const GAP = 12;
   const LAST_COLUMN_EXTRA = 12;
   const FALLBACK_WIDTHS = {
@@ -656,56 +637,60 @@ export default function MobileFundTable({
       {
         accessorKey: 'fundName',
         header: () => (
-          <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-            <span>基金名称</span>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={(e) => {
-                e.stopPropagation?.();
-                setSettingModalOpen(true);
-              }}
-              title="个性化设置"
-              style={{
-                border: 'none',
-                width: '28px',
-                height: '28px',
-                minWidth: '28px',
-                backgroundColor: 'transparent',
-                color: 'var(--text)',
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <SettingsIcon width="18" height="18" />
-            </button>
-            {sortBy === 'default' && (
+          <div className="mobile-fund-header-name-wrap">
+            <div className="mobile-fund-header-tools">
               <button
                 type="button"
-                className={`icon-button ${isNameSortMode ? 'active' : ''}`}
+                className="icon-button"
                 onClick={(e) => {
                   e.stopPropagation?.();
-                  setIsNameSortMode((prev) => !prev);
+                  setSettingModalOpen(true);
                 }}
-                title={isNameSortMode ? '退出排序' : '拖动排序'}
+                title="个性化设置"
                 style={{
                   border: 'none',
                   width: '28px',
                   height: '28px',
                   minWidth: '28px',
                   backgroundColor: 'transparent',
-                  color: isNameSortMode ? 'var(--primary)' : 'var(--text)',
+                  color: 'var(--text)',
                   flexShrink: 0,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <SortIcon width="18" height="18" />
+                <SettingsIcon width="15" height="15" />
               </button>
-            )}
+              {sortBy === 'default' && (
+                <button
+                  type="button"
+                  className={`icon-button ${isNameSortMode ? 'active' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation?.();
+                    setIsNameSortMode((prev) => !prev);
+                  }}
+                  title={isNameSortMode ? '退出排序' : '拖动排序'}
+                  style={{
+                    border: 'none',
+                    width: '28px',
+                    height: '28px',
+                    minWidth: '28px',
+                    backgroundColor: 'transparent',
+                    color: isNameSortMode ? 'var(--primary)' : 'var(--text)',
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <SortIcon width="15" height="15" />
+                </button>
+              )}
+            </div>
+            <div className="mobile-fund-header-title">
+              {renderSortLabel('基金名称', 'name')}
+            </div>
           </div>
         ),
         cell: (info) => (
@@ -744,12 +729,12 @@ export default function MobileFundTable({
           const displayDate = typeof date === 'string' && date.length > 5 ? date.slice(5) : date;
           return (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0 }}>
-              <span style={{ display: 'block', width: '100%', fontWeight: 700 }}>
-                <FitText maxFontSize={14} minFontSize={10}>
+              <span style={{ display: 'block', width: '100%', fontWeight: 600 }}>
+                <FitText maxFontSize={12} minFontSize={9}>
                   {info.getValue() ?? '—'}
                 </FitText>
               </span>
-              <span className="muted" style={{ fontSize: '10px' }}>{displayDate}</span>
+              <span className="muted" style={{ fontSize: '9px' }}>{displayDate}</span>
             </div>
           );
         },
@@ -767,13 +752,13 @@ export default function MobileFundTable({
 
           return (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0 }}>
-              <span style={{ display: 'block', width: '100%', fontWeight: 700 }}>
-                <FitText maxFontSize={14} minFontSize={10}>
+              <span style={{ display: 'block', width: '100%', fontWeight: 600 }}>
+                <FitText maxFontSize={12} minFontSize={9}>
                   {estimateNav ?? '—'}
                 </FitText>
               </span>
               {hasEstimateNav && displayDate && displayDate !== '-' ? (
-                <span className="muted" style={{ fontSize: '10px' }}>{displayDate}</span>
+                <span className="muted" style={{ fontSize: '9px' }}>{displayDate}</span>
               ) : null}
             </div>
           );
@@ -782,7 +767,7 @@ export default function MobileFundTable({
       },
       {
         accessorKey: 'yesterdayChangePercent',
-        header: '昨日涨幅',
+        header: () => renderSortLabel('昨日涨幅', 'yesterdayIncrease', 'right'),
         cell: (info) => {
           const original = info.row.original || {};
           const value = original.yesterdayChangeValue;
@@ -791,10 +776,10 @@ export default function MobileFundTable({
           const cls = value > 0 ? 'up' : value < 0 ? 'down' : '';
           return (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0 }}>
-              <span className={cls} style={{ fontWeight: 700 }}>
+              <span className={cls} style={{ fontWeight: 600, fontSize: '12px' }}>
                 {info.getValue() ?? '—'}
               </span>
-              <span className="muted" style={{ fontSize: '10px' }}>{displayDate}</span>
+              <span className="muted" style={{ fontSize: '9px' }}>{displayDate}</span>
             </div>
           );
         },
@@ -802,7 +787,7 @@ export default function MobileFundTable({
       },
       {
         accessorKey: 'estimateChangePercent',
-        header: '估值涨幅',
+        header: () => renderSortLabel('估值涨幅', 'yield', 'right'),
         cell: (info) => {
           const original = info.row.original || {};
           const value = original.estimateChangeValue;
@@ -814,11 +799,11 @@ export default function MobileFundTable({
           const hasText = text != null && text !== '—';
           return (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0 }}>
-              <span className={cls} style={{ fontWeight: 700 }}>
+              <span className={cls} style={{ fontWeight: 600, fontSize: '12px' }}>
                 {text ?? '—'}
               </span>
               {hasText && displayTime && displayTime !== '-' ? (
-                <span className="muted" style={{ fontSize: '10px' }}>{displayTime}</span>
+                <span className="muted" style={{ fontSize: '9px' }}>{displayTime}</span>
               ) : null}
             </div>
           );
@@ -827,7 +812,7 @@ export default function MobileFundTable({
       },
       {
         accessorKey: 'totalChangePercent',
-        header: '估算收益',
+        header: () => renderSortLabel('估算收益', 'estimateProfit', 'right'),
         cell: (info) => {
           const original = info.row.original || {};
           const value = original.estimateProfitValue;
@@ -838,14 +823,14 @@ export default function MobileFundTable({
 
           return (
             <div style={{ width: '100%' }}>
-              <span className={cls} style={{ display: 'block', width: '100%', fontWeight: 700 }}>
-                <FitText maxFontSize={14} minFontSize={10}>
+              <span className={cls} style={{ display: 'block', width: '100%', fontWeight: 600 }}>
+                <FitText maxFontSize={12} minFontSize={9}>
                   {masked && hasProfit ? <span className="mask-text">******</span> : amountStr}
                 </FitText>
               </span>
               {hasProfit && percentStr && !masked ? (
-                <span className={`${cls} estimate-profit-percent`} style={{ display: 'block', width: '100%', fontSize: '0.75em', opacity: 0.9, fontWeight: 500 }}>
-                  <FitText maxFontSize={11} minFontSize={9}>
+                <span className={`${cls} estimate-profit-percent`} style={{ display: 'block', width: '100%', fontSize: '0.7em', opacity: 0.88, fontWeight: 500 }}>
+                  <FitText maxFontSize={10} minFontSize={8}>
                     {percentStr}
                   </FitText>
                 </span>
@@ -865,7 +850,7 @@ export default function MobileFundTable({
             return <div className="muted" style={{ textAlign: 'right', fontSize: '12px' }}>—</div>;
           }
           return (
-            <div style={{ fontWeight: 700, textAlign: 'right' }}>
+            <div style={{ fontWeight: 600, textAlign: 'right', fontSize: '12px' }}>
               {value}
             </div>
           );
@@ -884,14 +869,14 @@ export default function MobileFundTable({
           const percentStr = original.todayProfitPercent ?? '';
           return (
             <div style={{ width: '100%' }}>
-              <span className={cls} style={{ display: 'block', width: '100%', fontWeight: 700 }}>
-                <FitText maxFontSize={14} minFontSize={10}>
+              <span className={cls} style={{ display: 'block', width: '100%', fontWeight: 600 }}>
+                <FitText maxFontSize={12} minFontSize={9}>
                   {masked && hasProfit ? <span className="mask-text">******</span> : amountStr}
                 </FitText>
               </span>
               {percentStr && !masked ? (
-                <span className={`${cls} today-profit-percent`} style={{ display: 'block', width: '100%', fontSize: '0.75em', opacity: 0.9, fontWeight: 500 }}>
-                  <FitText maxFontSize={11} minFontSize={9}>
+                <span className={`${cls} today-profit-percent`} style={{ display: 'block', width: '100%', fontSize: '0.7em', opacity: 0.88, fontWeight: 500 }}>
+                  <FitText maxFontSize={10} minFontSize={8}>
                     {percentStr}
                   </FitText>
                 </span>
@@ -903,7 +888,7 @@ export default function MobileFundTable({
       },
       {
         accessorKey: 'holdingProfit',
-        header: '持有收益',
+        header: () => renderSortLabel('持有收益', 'holding', 'right'),
         cell: (info) => {
           const original = info.row.original || {};
           const value = original.holdingProfitValue;
@@ -913,14 +898,14 @@ export default function MobileFundTable({
           const percentStr = original.holdingProfitPercent ?? '';
           return (
             <div style={{ width: '100%' }}>
-              <span className={cls} style={{ display: 'block', width: '100%', fontWeight: 700 }}>
-                <FitText maxFontSize={14} minFontSize={10}>
+              <span className={cls} style={{ display: 'block', width: '100%', fontWeight: 600 }}>
+                <FitText maxFontSize={12} minFontSize={9}>
                   {masked && hasTotal ? <span className="mask-text">******</span> : amountStr}
                 </FitText>
               </span>
               {percentStr && !masked ? (
-                <span className={`${cls} holding-profit-percent`} style={{ display: 'block', width: '100%', fontSize: '0.75em', opacity: 0.9, fontWeight: 500 }}>
-                  <FitText maxFontSize={11} minFontSize={9}>
+                <span className={`${cls} holding-profit-percent`} style={{ display: 'block', width: '100%', fontSize: '0.7em', opacity: 0.88, fontWeight: 500 }}>
+                  <FitText maxFontSize={10} minFontSize={8}>
                     {percentStr}
                   </FitText>
                 </span>
@@ -931,7 +916,7 @@ export default function MobileFundTable({
         meta: { align: 'right', cellClassName: 'holding-cell', width: columnWidthMap.holdingProfit },
       },
     ],
-    [currentTab, favorites, refreshing, columnWidthMap, showFullFundName, getFundCardProps, isNameSortMode, sortBy, relatedSectorByCode]
+    [currentTab, favorites, refreshing, columnWidthMap, showFullFundName, getFundCardProps, isNameSortMode, sortBy, sortOrder, relatedSectorByCode, viewMode, onViewModeChange]
   );
 
   const table = useReactTable({
@@ -967,78 +952,15 @@ export default function MobileFundTable({
 
   const headerGroup = table.getHeaderGroups()[0];
 
-  const snapPositionsRef = useRef([]);
-  const scrollEndTimerRef = useRef(null);
+  const visibleMetricHeaders = headerGroup?.headers?.filter((header) => header.column.id !== 'fundName') ?? [];
+  const metricsWidth = visibleMetricHeaders.reduce((sum, header, index) => {
+    const width = header.column.columnDef.meta?.width ?? 80;
+    const gapWidth = index > 0 ? GAP : 0;
+    const trailingWidth = index === visibleMetricHeaders.length - 1 ? LAST_COLUMN_EXTRA : 0;
+    return sum + width + gapWidth + trailingWidth;
+  }, 0);
 
-  useEffect(() => {
-    if (!headerGroup?.headers?.length) {
-      snapPositionsRef.current = [];
-      return;
-    }
-    const gap = 12;
-    const widths = headerGroup.headers.map((h) => h.column.columnDef.meta?.width ?? 80);
-    if (widths.length > 0) widths[widths.length - 1] += LAST_COLUMN_EXTRA;
-    const positions = [0];
-    let acc = 0;
-    // 从第二列开始累加，因为第一列是固定的，滚动是为了让后续列贴合到第一列右侧
-    // 累加的是"被滚出去"的非固定列的宽度
-    for (let i = 1; i < widths.length - 1; i++) {
-      acc += widths[i] + gap;
-      positions.push(acc);
-    }
-    snapPositionsRef.current = positions;
-  }, [headerGroup?.headers?.length, columnWidthMap, mobileColumnOrder]);
-
-  useEffect(() => {
-    const el = tableContainerRef.current;
-    if (!el || snapPositionsRef.current.length === 0) return;
-
-    const snapToNearest = () => {
-      const positions = snapPositionsRef.current;
-      if (positions.length === 0) return;
-      const scrollLeft = el.scrollLeft;
-      const maxScroll = el.scrollWidth - el.clientWidth;
-      if (maxScroll <= 0) return;
-      const nearest = positions.reduce((prev, curr) =>
-        Math.abs(curr - scrollLeft) < Math.abs(prev - scrollLeft) ? curr : prev
-      );
-      const clamped = Math.max(0, Math.min(maxScroll, nearest));
-      if (Math.abs(clamped - scrollLeft) > 2) {
-        el.scrollTo({ left: clamped, behavior: 'smooth' });
-      }
-    };
-
-    const handleScroll = () => {
-      if (scrollEndTimerRef.current) clearTimeout(scrollEndTimerRef.current);
-      scrollEndTimerRef.current = setTimeout(snapToNearest, 120);
-    };
-
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      el.removeEventListener('scroll', handleScroll);
-      if (scrollEndTimerRef.current) clearTimeout(scrollEndTimerRef.current);
-    };
-  }, []);
-
-  const mobileGridLayout = (() => {
-    if (!headerGroup?.headers?.length) return { gridTemplateColumns: '', minWidth: undefined };
-    const gap = 12;
-    const widths = headerGroup.headers.map((h) => h.column.columnDef.meta?.width ?? 80);
-    if (widths.length > 0) widths[widths.length - 1] += LAST_COLUMN_EXTRA;
-    return {
-      gridTemplateColumns: widths.map((w) => `${w}px`).join(' '),
-      minWidth: widths.reduce((a, b) => a + b, 0) + (widths.length - 1) * gap,
-    };
-  })();
-
-  const getPinClass = (columnId, isHeader) => {
-    if (columnId === 'fundName') {
-      const baseClass = isHeader ? 'table-header-cell-pin-left' : 'table-cell-pin-left';
-      const scrolledClass = isScrolled ? 'is-scrolled' : '';
-      return `${baseClass} ${scrolledClass}`.trim();
-    }
-    return '';
-  };
+  const mobileTableWidth = NAME_CELL_WIDTH + metricsWidth;
 
   const getAlignClass = (columnId) => {
     if (columnId === 'fundName') return '';
@@ -1050,19 +972,30 @@ export default function MobileFundTable({
     if(!headerGroup) return null;
     return (
       <div
-        className="table-header-row mobile-fund-table-header"
-        style={mobileGridLayout.gridTemplateColumns ? { gridTemplateColumns: mobileGridLayout.gridTemplateColumns } : undefined}
+        className="mobile-fund-flex-row mobile-fund-flex-header-row"
+        style={mobileTableWidth ? { minWidth: mobileTableWidth } : undefined}
       >
-        {headerGroup.headers.map((header, headerIndex) => {
+        {headerGroup.headers.map((header) => {
           const columnId = header.column.id;
-          const pinClass = getPinClass(columnId, true);
           const alignClass = getAlignClass(columnId);
-          const isLastColumn = headerIndex === headerGroup.headers.length - 1;
+          const width = header.column.columnDef.meta?.width ?? FALLBACK_WIDTHS[columnId] ?? 80;
+          const isNameColumn = columnId === 'fundName';
+          const style = isNameColumn
+            ? {
+              width: NAME_CELL_WIDTH,
+              minWidth: NAME_CELL_WIDTH,
+              maxWidth: NAME_CELL_WIDTH,
+            }
+            : {
+              width,
+              minWidth: width,
+              maxWidth: width,
+            };
           return (
             <div
               key={header.id}
-              className={`table-header-cell ${alignClass} ${pinClass}`}
-              style={isLastColumn ? { paddingRight: LAST_COLUMN_EXTRA } : undefined}
+              className={`mobile-fund-flex-cell mobile-fund-flex-header-cell ${alignClass} ${isNameColumn ? 'mobile-fund-flex-name-cell' : ''} ${isScrolled && isNameColumn ? 'is-scrolled' : ''}`}
+              style={style}
             >
               {header.isPlaceholder
                 ? null
@@ -1075,42 +1008,84 @@ export default function MobileFundTable({
   }
 
   const renderContent = (onlyShowHeader) => {
-    if (onlyShowHeader) {
+    const rows = table.getRowModel().rows;
+    const renderRowContent = (row, index, listeners, setActivatorNodeRef) => {
+      const visibleCells = row.getVisibleCells();
+      const nameCell = visibleCells.find((cell) => cell.column.id === 'fundName');
+      const metricCells = visibleCells.filter((cell) => cell.column.id !== 'fundName');
+      const rowBackground = index % 2 === 0 ? 'var(--bg)' : 'var(--table-row-alt-bg)';
+
       return (
-        <div style={{position: 'fixed', top: effectiveStickyTop}} className="mobile-fund-table mobile-fund-table-portal-header" ref={portalHeaderRef}>
+        <div
+          className="mobile-fund-flex-row"
+          style={{ minWidth: mobileTableWidth, background: rowBackground }}
+          onClick={() => setIsNameSortMode(false)}
+          {...listeners}
+        >
           <div
-            className="mobile-fund-table-scroll"
-            style={mobileGridLayout.minWidth != null ? { minWidth: mobileGridLayout.minWidth } : undefined}
+            ref={setActivatorNodeRef}
+            className={`mobile-fund-flex-cell mobile-fund-flex-name-cell ${isScrolled ? 'is-scrolled' : ''}`}
+            style={{
+              width: NAME_CELL_WIDTH,
+              minWidth: NAME_CELL_WIDTH,
+              maxWidth: NAME_CELL_WIDTH,
+              background: rowBackground,
+            }}
           >
-            {renderTableHeader()}
+            {nameCell ? flexRender(nameCell.column.columnDef.cell, nameCell.getContext()) : null}
+          </div>
+
+          <div className="mobile-fund-flex-metrics" style={{ width: metricsWidth || undefined }}>
+            {metricCells.map((cell, cellIndex) => {
+              const columnId = cell.column.id;
+              const alignClass = getAlignClass(columnId);
+              const cellClassName = cell.column.columnDef.meta?.cellClassName || '';
+              const width = cell.column.columnDef.meta?.width ?? FALLBACK_WIDTHS[columnId] ?? 80;
+              const isLastCell = cellIndex === metricCells.length - 1;
+
+              return (
+                <div
+                  key={cell.id}
+                  className={`mobile-fund-flex-cell mobile-fund-flex-metric-cell ${alignClass} ${cellClassName}`}
+                  style={{
+                    width,
+                    minWidth: width,
+                    maxWidth: width,
+                    paddingRight: isLastCell ? LAST_COLUMN_EXTRA : undefined,
+                  }}
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </div>
+              );
+            })}
           </div>
         </div>
       );
-    }
+    };
 
     return (
       <div className="mobile-fund-table" ref={tableContainerRef}>
         <div
           className="mobile-fund-table-scroll"
-          style={mobileGridLayout.minWidth != null ? { minWidth: mobileGridLayout.minWidth } : undefined}
+          style={mobileTableWidth ? { minWidth: mobileTableWidth } : undefined}
         >
           {renderTableHeader()}
 
           {!onlyShowHeader && (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-              onDragCancel={handleDragCancel}
-              modifiers={[restrictToVerticalAxis, restrictToParentElement]}
-            >
-              <SortableContext
-                items={data.map((item) => item.code)}
-                strategy={verticalListSortingStrategy}
+            (isNameSortMode ? (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragCancel={handleDragCancel}
+                modifiers={[restrictToVerticalAxis, restrictToParentElement]}
               >
-                <AnimatePresence mode="popLayout">
-                  {table.getRowModel().rows.map((row, index) => (
+                <SortableContext
+                  items={data.map((item) => item.code)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {rows.map((row, index) => (
                     <SortableRow
                       key={row.original.code || row.id}
                       row={row}
@@ -1118,56 +1093,29 @@ export default function MobileFundTable({
                       disabled={sortBy !== 'default'}
                     >
                       {(setActivatorNodeRef, listeners) => (
-                        <div
-                          ref={sortBy === 'default' && !isNameSortMode ? setActivatorNodeRef : undefined}
-                          className="table-row"
-                          style={{
-                            background: index % 2 === 0 ? 'var(--bg)' : 'var(--table-row-alt-bg)',
-                            position: 'relative',
-                            zIndex: 1,
-                            ...(mobileGridLayout.gridTemplateColumns ? { gridTemplateColumns: mobileGridLayout.gridTemplateColumns } : {}),
-                          }}
-                          onClick={isNameSortMode ? () => setIsNameSortMode(false) : undefined}
-                          {...(sortBy === 'default' && !isNameSortMode ? listeners : {})}
-                        >
-                          {row.getVisibleCells().map((cell, cellIndex) => {
-                            const columnId = cell.column.id;
-                            const pinClass = getPinClass(columnId, false);
-                            const alignClass = getAlignClass(columnId);
-                            const cellClassName = cell.column.columnDef.meta?.cellClassName || '';
-                            const isLastColumn = cellIndex === row.getVisibleCells().length - 1;
-                            const style = isLastColumn ? {paddingRight: LAST_COLUMN_EXTRA} : {};
-                            if (cellIndex  === 0) {
-                              if (index % 2 !== 0) {
-                                style.background = 'var(--table-row-alt-bg)';
-                              }else {
-                                style.background = 'var(--bg)';
-                              }
-                            }
-                            return (
-                              <div
-                                key={cell.id}
-                                className={`table-cell ${alignClass} ${cellClassName} ${pinClass}`}
-                                style={style}
-                              >
-                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                              </div>
-                            );
-                          })}
-                        </div>
+                        renderRowContent(row, index, listeners, setActivatorNodeRef)
                       )}
                     </SortableRow>
                   ))}
-                </AnimatePresence>
-              </SortableContext>
-            </DndContext>
+                </SortableContext>
+              </DndContext>
+            ) : (
+              rows.map((row, index) => (
+                <div
+                  key={row.original.code || row.id}
+                  className="mobile-fund-flex-row-wrapper"
+                >
+                  {renderRowContent(row, index)}
+                </div>
+              ))
+            ))
 
           )}
         </div>
 
-        {table.getRowModel().rows.length === 0 && !onlyShowHeader && (
-          <div className="table-row empty-row">
-            <div className="table-cell" style={{ textAlign: 'center' }}>
+        {rows.length === 0 && !onlyShowHeader && (
+          <div className="mobile-fund-flex-empty-row">
+            <div className="mobile-fund-flex-empty-cell" style={{ textAlign: 'center' }}>
               <span className="muted">暂无数据</span>
             </div>
           </div>
@@ -1199,7 +1147,6 @@ export default function MobileFundTable({
           getFundCardProps={getFundCardProps}
         />
 
-        {!onlyShowHeader && showPortalHeader && ReactDOM.createPortal(renderContent(true), document.body)}
       </div>
     );
   };

@@ -1,17 +1,15 @@
 'use client';
 
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle, DrawerTrigger,
-} from '@/components/ui/drawer';
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import FundCard from './FundCard';
 import { CloseIcon } from './Icons';
 
 /**
- * 移动端基金详情底部 Drawer 弹框
+ * 移动端基金详情弹窗
  *
  * @param {Object} props
  * @param {boolean} props.open - 是否打开
@@ -28,10 +26,9 @@ export default function MobileFundCardDrawer({
   ignoreNextDrawerCloseRef,
   cardSheetRow,
   getFundCardProps,
-  children,
 }) {
   return (
-    <Drawer
+    <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) {
@@ -43,11 +40,10 @@ export default function MobileFundCardDrawer({
         }
       }}
     >
-      <DrawerTrigger asChild>
-        {children}
-      </DrawerTrigger>
-      <DrawerContent
-        className="h-[85vh] max-h-[90vh] mt-0 flex flex-col"
+      <DialogContent
+        overlayClassName="modal-overlay z-[9999]"
+        className="glass z-[10000]"
+        showCloseButton={false}
         onPointerDownOutside={(e) => {
           if (blockDrawerClose) return;
           if (e?.target?.closest?.('[data-slot="dialog-content"], [role="dialog"]')) {
@@ -56,19 +52,30 @@ export default function MobileFundCardDrawer({
           }
           onOpenChange(false);
         }}
+        style={{
+          width: 'min(92vw, 880px)',
+          maxWidth: '880px',
+          maxHeight: 'min(85vh, 920px)',
+          padding: 0,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
       >
-        <DrawerHeader className="flex-shrink-0 flex flex-row items-center justify-between gap-2 space-y-0 px-5 pb-4 pt-2 text-left">
-          <DrawerTitle className="text-base font-semibold text-[var(--text)]">
+        <div className="flex-shrink-0 flex flex-row items-center justify-between gap-2 px-5 pb-4 pt-4 text-left">
+          <DialogTitle className="text-base font-semibold text-[var(--text)]">
             基金详情
-          </DrawerTitle>
-          <DrawerClose
+          </DialogTitle>
+          <button
+            type="button"
             className="icon-button border-none bg-transparent p-1"
+            onClick={() => onOpenChange(false)}
             title="关闭"
             style={{ borderColor: 'transparent', backgroundColor: 'transparent' }}
           >
             <CloseIcon width="20" height="20" />
-          </DrawerClose>
-        </DrawerHeader>
+          </button>
+        </div>
         <div
           className="flex-1 min-h-0 overflow-y-auto px-5 pb-8 pt-0"
           style={{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))' }}
@@ -77,7 +84,7 @@ export default function MobileFundCardDrawer({
             <FundCard {...getFundCardProps(cardSheetRow)} />
           ) : null}
         </div>
-      </DrawerContent>
-    </Drawer>
+      </DialogContent>
+    </Dialog>
   );
 }
