@@ -41,11 +41,9 @@ function SortableIndexItem({ item, canRemove, onRemove, isMobile }) {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    cursor: isDragging ? "grabbing" : "grab",
-    flex: isMobile
-      ? "0 0 calc((100% - 24px) / 3)"
-      : "0 0 calc((100% - 48px) / 5)",
-    touchAction: "none",
+    cursor: isDragging ? "grabbing" : "default",
+    width: "100%",
+    touchAction: isMobile ? "pan-y" : "none",
     ...(isDragging && {
       position: "relative",
       zIndex: 10,
@@ -63,10 +61,8 @@ function SortableIndexItem({ item, canRemove, onRemove, isMobile }) {
       style={style}
       className={cn(
         "glass card",
-        "relative flex flex-col gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2"
+        "relative flex flex-col gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-2.5 py-2"
       )}
-      {...attributes}
-      {...listeners}
     >
       {canRemove && (
         <button
@@ -95,19 +91,46 @@ function SortableIndexItem({ item, canRemove, onRemove, isMobile }) {
           <MinusIcon width="10" height="10" />
         </button>
       )}
-      <div
-        style={{
-          fontSize: 13,
-          fontWeight: 500,
-          paddingRight: 18,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
-        {item.name}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+        <button
+          type="button"
+          aria-label={`拖拽排序 ${item.name}`}
+          title="按住拖拽排序"
+          style={{
+            width: 16,
+            height: 16,
+            border: "none",
+            background: "transparent",
+            color: "var(--muted)",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+            cursor: isDragging ? "grabbing" : "grab",
+            touchAction: "none",
+            flexShrink: 0,
+          }}
+          {...attributes}
+          {...listeners}
+        >
+          ⋮⋮
+        </button>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 500,
+            paddingRight: 12,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            minWidth: 0,
+            flex: 1,
+          }}
+        >
+          {item.name}
+        </div>
       </div>
-      <div style={{ fontSize: 18, fontWeight: 600, color }}>
+      <div style={{ fontSize: 16, fontWeight: 600, color, lineHeight: 1.15 }}>
         {item.price?.toFixed ? item.price.toFixed(2) : String(item.price ?? "-")}
       </div>
       <div style={{ fontSize: 12, color }}>
@@ -172,7 +195,11 @@ export default function MarketSettingModal({
   }, [open]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, {
+      activationConstraint: isMobile
+        ? { delay: 140, tolerance: 8 }
+        : { distance: 5 },
+    }),
     useSensor(KeyboardSensor)
   );
 
@@ -200,7 +227,7 @@ export default function MarketSettingModal({
   };
 
   const body = (
-    <div className="flex flex-col gap-4 px-4 pb-4 pt-2 text-[var(--text)]">
+    <div className="flex flex-col gap-4 px-0 pb-2 pt-1 text-[var(--text)]">
       <div>
         <div
           style={{
@@ -244,7 +271,16 @@ export default function MarketSettingModal({
               items={selectedCodes}
               strategy={rectSortingStrategy}
             >
-              <div className="flex flex-wrap gap-3">
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: isMobile
+                    ? "repeat(3, minmax(0, 1fr))"
+                    : "repeat(5, minmax(0, 1fr))",
+                  gap: 12,
+                  width: "100%",
+                }}
+              >
                 {selectedList.map((item) => (
                   <SortableIndexItem
                     key={item.code}
@@ -348,19 +384,19 @@ export default function MarketSettingModal({
       >
         <DialogContent
           overlayClassName="modal-overlay z-[9999]"
-          className="glass z-[10000]"
+          className="glass z-[10000] !top-[4vh] !translate-y-0"
           showCloseButton={false}
           style={{
             width: "min(92vw, 680px)",
             maxWidth: "680px",
-            maxHeight: "min(80vh, 780px)",
+            maxHeight: "min(92vh, 820px)",
             padding: 0,
             overflow: "hidden",
             display: "flex",
             flexDirection: "column",
           }}
         >
-          <div className="flex flex-row items-center justify-between gap-2 px-5 py-4">
+          <div className="flex flex-row items-center justify-between gap-2 px-4 py-3">
             <DialogTitle className="flex items-center gap-2.5 text-left">
               <SettingsIcon width="20" height="20" />
               <span>指数个性化设置</span>
@@ -378,7 +414,17 @@ export default function MarketSettingModal({
               <CloseIcon width="20" height="20" />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto px-5 pb-5" style={{ minHeight: 0 }}>{body}</div>
+          <div
+            className="flex-1 overflow-y-auto px-4 pb-4"
+            style={{
+              minHeight: 0,
+              WebkitOverflowScrolling: "touch",
+              overscrollBehavior: "contain",
+              touchAction: "pan-y",
+            }}
+          >
+            {body}
+          </div>
         </DialogContent>
         <AnimatePresence>
           {resetConfirmOpen && (

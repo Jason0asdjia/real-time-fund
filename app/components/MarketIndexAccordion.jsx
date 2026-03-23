@@ -485,21 +485,34 @@ export default function MarketIndexAccordion({
           </AccordionTrigger>
           <AccordionContent className={isMobile ? 'px-3 pb-3 pt-0' : 'px-3 pb-4 pt-0'}>
             <div
-              className="flex flex-wrap w-full min-w-0"
-              style={{ gap: isMobile ? 8 : 12 }}
+              className="market-index-card-scroll-area"
+              style={isMobile
+                ? {
+                    maxHeight: 'min(52vh, 560px)',
+                    overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                    overscrollBehavior: 'contain',
+                    touchAction: 'pan-y',
+                  }
+                : undefined}
             >
-              {visibleIndices.map((item, i) => (
-                <div
-                  key={item.code || i}
-                  style={{
-                    flex: isMobile
-                      ? '0 0 calc((100% - 8px) / 2)'
-                      : '0 0 calc((100% - 48px) / 5)',
-                  }}
-                >
-                  <IndexCard item={item} />
-                </div>
-              ))}
+              <div
+                className="flex flex-wrap w-full min-w-0"
+                style={{ gap: isMobile ? 8 : 12 }}
+              >
+                {visibleIndices.map((item, i) => (
+                  <div
+                    key={item.code || i}
+                    style={{
+                      flex: isMobile
+                        ? '0 0 calc((100% - 8px) / 2)'
+                        : '0 0 calc((100% - 48px) / 5)',
+                    }}
+                  >
+                    <IndexCard item={item} />
+                  </div>
+                ))}
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>

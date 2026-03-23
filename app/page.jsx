@@ -4136,11 +4136,12 @@ export default function HomePage() {
             className={`filter-bar ${isIntegratedMobileListView ? 'mobile-list-integrated' : ''}`}
             style={{
               position: isIntegratedMobileListView
-                ? (isMobile ? 'relative' : 'sticky')
+                ? (isMobile ? 'sticky' : undefined)
                 : undefined,
               top: isIntegratedMobileListView
-                ? (isMobile ? 0 : navbarHeight)
+                ? (isMobile ? navbarHeight : undefined)
                 : navbarHeight + marketIndexAccordionHeight,
+              zIndex: isIntegratedMobileListView && isMobile ? 41 : undefined,
               marginTop: 0,
               marginBottom: isIntegratedMobileListView ? 0 : 8,
               display: 'flex',

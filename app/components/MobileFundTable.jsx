@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   flexRender,
@@ -358,9 +359,11 @@ export default function MobileFundTable({
 
   const [cardSheetRow, setCardSheetRow] = useState(null);
   const tableContainerRef = useRef(null);
+  const portalHeaderRef = useRef(null);
   const suppressHorizontalSyncRef = useRef(false);
   const [tableContainerWidth, setTableContainerWidth] = useState(0);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [showPortalHeader, setShowPortalHeader] = useState(false);
 
   useEffect(() => {
     const el = tableContainerRef.current;
@@ -415,6 +418,51 @@ export default function MobileFundTable({
       scrollSyncRef.current?.listeners?.delete(applyScrollLeft);
     };
   }, [scrollSyncRef]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updatePortalHeaderVisibility = () => {
+      const tableEl = tableContainerRef.current;
+      if (!tableEl) {
+        setShowPortalHeader(false);
+        return;
+      }
+
+      const rect = tableEl.getBoundingClientRect();
+      const headerHeight = 42;
+      const shouldShow = rect.top <= stickyTop && rect.bottom > stickyTop + headerHeight;
+      setShowPortalHeader(shouldShow);
+    };
+
+    updatePortalHeaderVisibility();
+    window.addEventListener('scroll', updatePortalHeaderVisibility, { passive: true });
+    window.addEventListener('resize', updatePortalHeaderVisibility, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', updatePortalHeaderVisibility);
+      window.removeEventListener('resize', updatePortalHeaderVisibility);
+    };
+  }, [stickyTop, data.length, sortBy, sortOrder, mobileColumnOrder, mobileColumnVisibility]);
+
+  useEffect(() => {
+    const portalEl = portalHeaderRef.current;
+    if (!portalEl || !scrollSyncRef?.current) return;
+
+    const applyPortalScrollLeft = (nextScrollLeft) => {
+      if (Math.abs(portalEl.scrollLeft - nextScrollLeft) <= 1) return;
+      portalEl.scrollLeft = nextScrollLeft;
+    };
+
+    scrollSyncRef.current.listeners.add(applyPortalScrollLeft);
+    if (typeof scrollSyncRef.current.scrollLeft === 'number') {
+      applyPortalScrollLeft(scrollSyncRef.current.scrollLeft);
+    }
+
+    return () => {
+      scrollSyncRef.current?.listeners?.delete(applyPortalScrollLeft);
+    };
+  }, [scrollSyncRef, showPortalHeader]);
 
   const NAME_CELL_WIDTH = 148;
   const GAP = 12;
@@ -512,6 +560,7 @@ export default function MobileFundTable({
   // 当 isNameSortMode 且 sortBy==='default' 时，左侧显示排序/拖拽图标，可拖动行排序
   const MobileFundNameCell = ({ info, showFullFundName, onOpenCardSheet, isNameSortMode: nameSortMode, sortBy: currentSortBy }) => {
     const original = info.row.original || {};
+    const fundName = info.getValue() ?? '—';
     const code = original.code;
     const isUpdated = original.isUpdated;
     const hasDca = original.hasDca;
@@ -566,7 +615,10 @@ export default function MobileFundTable({
             title={isUpdated ? '今日净值已更新' : onOpenCardSheet ? '点击查看卡片' : ''}
             role={onOpenCardSheet ? 'button' : undefined}
             tabIndex={onOpenCardSheet ? 0 : undefined}
-            style={onOpenCardSheet ? { cursor: 'pointer' } : undefined}
+            style={{
+              fontSize: '12px',
+              ...(onOpenCardSheet ? { cursor: 'pointer' } : {}),
+            }}
             onClick={(e) => {
               if (onOpenCardSheet) {
                 e.stopPropagation?.();
@@ -580,7 +632,7 @@ export default function MobileFundTable({
               }
             }}
           >
-            {info.getValue() ?? '—'}
+            {fundName}
           </span>
           {holdingAmountDisplay ? (
             <span
@@ -970,44 +1022,67 @@ export default function MobileFundTable({
 
   const renderTableHeader = ()=>{
     if(!headerGroup) return null;
+    const nameHeader = headerGroup.headers.find((header) => header.column.id === 'fundName');
+    const metricHeaders = headerGroup.headers.filter((header) => header.column.id !== 'fundName');
+
     return (
       <div
         className="mobile-fund-flex-row mobile-fund-flex-header-row"
         style={mobileTableWidth ? { minWidth: mobileTableWidth } : undefined}
       >
-        {headerGroup.headers.map((header) => {
-          const columnId = header.column.id;
-          const alignClass = getAlignClass(columnId);
-          const width = header.column.columnDef.meta?.width ?? FALLBACK_WIDTHS[columnId] ?? 80;
-          const isNameColumn = columnId === 'fundName';
-          const style = isNameColumn
-            ? {
-              width: NAME_CELL_WIDTH,
-              minWidth: NAME_CELL_WIDTH,
-              maxWidth: NAME_CELL_WIDTH,
-            }
-            : {
-              width,
-              minWidth: width,
-              maxWidth: width,
-            };
-          return (
-            <div
-              key={header.id}
-              className={`mobile-fund-flex-cell mobile-fund-flex-header-cell ${alignClass} ${isNameColumn ? 'mobile-fund-flex-name-cell' : ''} ${isScrolled && isNameColumn ? 'is-scrolled' : ''}`}
-              style={style}
-            >
-              {header.isPlaceholder
-                ? null
-                : flexRender(header.column.columnDef.header, header.getContext())}
-            </div>
-          );
-        })}
+        <div
+          className={`mobile-fund-flex-cell mobile-fund-flex-header-cell mobile-fund-flex-name-cell ${isScrolled ? 'is-scrolled' : ''}`}
+          style={{
+            width: NAME_CELL_WIDTH,
+            minWidth: NAME_CELL_WIDTH,
+            maxWidth: NAME_CELL_WIDTH,
+          }}
+        >
+          {nameHeader && !nameHeader.isPlaceholder
+            ? flexRender(nameHeader.column.columnDef.header, nameHeader.getContext())
+            : null}
+        </div>
+
+        <div className="mobile-fund-flex-metrics" style={{ width: metricsWidth || undefined }}>
+          {metricHeaders.map((header, headerIndex) => {
+            const columnId = header.column.id;
+            const alignClass = getAlignClass(columnId);
+            const width = header.column.columnDef.meta?.width ?? FALLBACK_WIDTHS[columnId] ?? 80;
+            const isLastHeader = headerIndex === metricHeaders.length - 1;
+
+            return (
+              <div
+                key={header.id}
+                className={`mobile-fund-flex-cell mobile-fund-flex-header-cell mobile-fund-flex-metric-cell ${alignClass}`}
+                style={{
+                  width,
+                  minWidth: width,
+                  maxWidth: width,
+                  paddingRight: isLastHeader ? LAST_COLUMN_EXTRA : undefined,
+                }}
+              >
+                {header.isPlaceholder
+                  ? null
+                  : flexRender(header.column.columnDef.header, header.getContext())}
+              </div>
+            );
+          })}
+        </div>
       </div>
     )
   }
 
   const renderContent = (onlyShowHeader) => {
+    if (onlyShowHeader) {
+      return (
+        <div className="mobile-fund-table mobile-fund-table-portal-header" ref={portalHeaderRef} style={{ top: stickyTop }}>
+          <div className="mobile-fund-table-scroll" style={mobileTableWidth ? { minWidth: mobileTableWidth } : undefined}>
+            {renderTableHeader()}
+          </div>
+        </div>
+      );
+    }
+
     const rows = table.getRowModel().rows;
     const renderRowContent = (row, index, listeners, setActivatorNodeRef) => {
       const visibleCells = row.getVisibleCells();
@@ -1146,6 +1221,8 @@ export default function MobileFundTable({
           cardSheetRow={cardSheetRow}
           getFundCardProps={getFundCardProps}
         />
+
+        {showPortalHeader && ReactDOM.createPortal(renderContent(true), document.body)}
 
       </div>
     );

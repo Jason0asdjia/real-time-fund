@@ -62,8 +62,8 @@ export default function MobileFundCardDrawer({
           flexDirection: 'column',
         }}
       >
-        <div className="flex-shrink-0 flex flex-row items-center justify-between gap-2 px-5 pb-4 pt-4 text-left">
-          <DialogTitle className="text-base font-semibold text-[var(--text)]">
+        <div className="flex-shrink-0 flex flex-row items-center justify-between gap-2 px-3 pb-3 pt-3 text-left">
+          <DialogTitle className="text-[15px] font-semibold text-[var(--text)]">
             基金详情
           </DialogTitle>
           <button
@@ -77,7 +77,7 @@ export default function MobileFundCardDrawer({
           </button>
         </div>
         <div
-          className="flex-1 min-h-0 overflow-y-auto px-5 pb-8 pt-0"
+          className="flex-1 min-h-0 overflow-y-auto px-3 pb-6 pt-0"
           style={{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))' }}
         >
           {cardSheetRow && getFundCardProps ? (

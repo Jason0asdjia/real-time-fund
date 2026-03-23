@@ -86,15 +86,20 @@ export default function FundCard({
 
   return (
     <motion.div
-      className="glass card"
+      className={`glass card ${layoutMode === 'drawer' ? 'drawer-card' : ''}`}
       style={{
         position: 'relative',
         zIndex: 1,
         ...style,
       }}
     >
-      <div className="row" style={{ marginBottom: 10 }}>
-        <div className="title">
+      <div
+        className="row"
+        style={layoutMode === 'drawer'
+          ? { marginBottom: 8, alignItems: 'flex-start', gap: 8 }
+          : { marginBottom: 10 }}
+      >
+        <div className="title" style={layoutMode === 'drawer' ? { flex: '1 1 auto', minWidth: 0, alignItems: 'flex-start' } : undefined}>
           {currentTab !== 'all' && currentTab !== 'fav' ? (
             <button
               className="icon-button fav-button"
@@ -121,12 +126,12 @@ export default function FundCard({
           )}
           <div className="title-text">
             <span
-              className="name-text"
+              className={`name-text ${layoutMode === 'drawer' ? 'drawer-name-text' : ''}`}
               title={f.jzrq === todayStr ? '今日净值已更新' : ''}
             >
               {f.name}
             </span>
-            <span className="muted">
+            <span className="muted" style={layoutMode === 'drawer' ? { fontSize: 13, lineHeight: 1.3 } : undefined}>
               #{f.code}
               {dcaPlans?.[f.code]?.enabled === true && <span className="dca-indicator">定</span>}
               {f.jzrq === todayStr && <span className="updated-indicator">✓</span>}
@@ -134,10 +139,10 @@ export default function FundCard({
           </div>
         </div>
 
-        <div className="actions">
-          <div className="badge-v">
+        <div className="actions" style={layoutMode === 'drawer' ? { flex: '0 0 auto', alignSelf: 'flex-start', marginTop: 2 } : undefined}>
+          <div className="badge-v" style={layoutMode === 'drawer' ? { padding: '4px 8px', borderRadius: 10 } : undefined}>
             <span>{f.noValuation ? '净值日期' : '估值时间'}</span>
-            <strong>
+            <strong style={layoutMode === 'drawer' ? { fontSize: 13, lineHeight: 1.2 } : undefined}>
               {f.noValuation
                 ? formatDisplayDate(f.jzrq)
                 : formatDisplayDate(f.gztime || f.time)}
