@@ -4649,6 +4649,7 @@ export default function HomePage() {
                     justifyContent: 'center',
                     gap: '8px',
                     marginTop: '16px',
+                    marginBottom: isMobile ? 'calc(12px + env(safe-area-inset-bottom, 0px))' : '12px',
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     fontSize: '14px',

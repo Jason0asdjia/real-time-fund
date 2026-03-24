@@ -42,7 +42,7 @@ export default function MobileFundCardDrawer({
     >
       <DialogContent
         overlayClassName="modal-overlay z-[9999]"
-        className="glass z-[10000]"
+        className="mobile-fund-detail-dialog glass z-[10000]"
         showCloseButton={false}
         onPointerDownOutside={(e) => {
           if (blockDrawerClose) return;
@@ -77,8 +77,12 @@ export default function MobileFundCardDrawer({
           </button>
         </div>
         <div
-          className="flex-1 min-h-0 overflow-y-auto px-3 pb-6 pt-0"
-          style={{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))' }}
+          className="mobile-fund-detail-scroll flex-1 min-h-0 overflow-y-auto px-3 pb-6 pt-0"
+          style={{
+            paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          }}
         >
           {cardSheetRow && getFundCardProps ? (
             <FundCard {...getFundCardProps(cardSheetRow)} />
