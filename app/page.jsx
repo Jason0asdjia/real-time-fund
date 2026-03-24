@@ -491,6 +491,7 @@ export default function HomePage() {
   const [historyModal, setHistoryModal] = useState({ open: false, fund: null });
   const [addHistoryModal, setAddHistoryModal] = useState({ open: false, fund: null });
   const [percentModes, setPercentModes] = useState({}); // { [code]: boolean }
+  const [todayPercentModes, setTodayPercentModes] = useState({}); // { [code]: boolean }
 
   const holdingsRef = useRef(holdings);
   const pendingTradesRef = useRef(pendingTrades);
@@ -4461,6 +4462,7 @@ export default function HomePage() {
                                     dcaPlans,
                                     holdings,
                                     percentModes,
+                                    todayPercentModes,
                                     valuationSeries,
                                     collapsedCodes,
                                     collapsedTrends,
@@ -4476,6 +4478,8 @@ export default function HomePage() {
                                     onActionClick: (f) => setActionModal({ open: true, fund: f }),
                                     onPercentModeToggle: (code) =>
                                       setPercentModes((prev) => ({ ...prev, [code]: !prev[code] })),
+                                    onTodayPercentModeToggle: (code) =>
+                                      setTodayPercentModes((prev) => ({ ...prev, [code]: !prev[code] })),
                                     onToggleCollapse: toggleCollapse,
                                     onToggleTrendCollapse: toggleTrendCollapse,
                                     masked: maskAmounts,
@@ -4507,6 +4511,7 @@ export default function HomePage() {
                               dcaPlans={dcaPlans}
                               holdings={holdings}
                               percentModes={percentModes}
+                              todayPercentModes={todayPercentModes}
                               valuationSeries={valuationSeries}
                               collapsedCodes={collapsedCodes}
                               collapsedTrends={collapsedTrends}
@@ -4522,6 +4527,9 @@ export default function HomePage() {
                               onActionClick={(fund) => setActionModal({ open: true, fund })}
                               onPercentModeToggle={(code) =>
                                 setPercentModes((prev) => ({ ...prev, [code]: !prev[code] }))
+                              }
+                              onTodayPercentModeToggle={(code) =>
+                                setTodayPercentModes((prev) => ({ ...prev, [code]: !prev[code] }))
                               }
                               onToggleCollapse={toggleCollapse}
                               onToggleTrendCollapse={toggleTrendCollapse}
@@ -4594,6 +4602,7 @@ export default function HomePage() {
                         dcaPlans,
                         holdings,
                         percentModes,
+                        todayPercentModes,
                         valuationSeries,
                         collapsedCodes,
                         collapsedTrends,
@@ -4609,6 +4618,8 @@ export default function HomePage() {
                         onActionClick: (f) => setActionModal({ open: true, fund: f }),
                         onPercentModeToggle: (code) =>
                           setPercentModes((prev) => ({ ...prev, [code]: !prev[code] })),
+                        onTodayPercentModeToggle: (code) =>
+                          setTodayPercentModes((prev) => ({ ...prev, [code]: !prev[code] })),
                         onToggleCollapse: toggleCollapse,
                         onToggleTrendCollapse: toggleTrendCollapse,
                         masked: maskAmounts,

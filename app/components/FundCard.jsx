@@ -53,6 +53,7 @@ export default function FundCard({
   dcaPlans,
   holdings,
   percentModes,
+  todayPercentModes,
   valuationSeries,
   collapsedCodes,
   collapsedTrends,
@@ -67,6 +68,7 @@ export default function FundCard({
   onHoldingClick,
   onActionClick,
   onPercentModeToggle,
+  onTodayPercentModeToggle,
   onToggleCollapse,
   onToggleTrendCollapse,
   layoutMode = 'card', // 'card' | 'drawer'，drawer 时前10重仓与业绩走势以 Tabs 展示
@@ -286,8 +288,28 @@ export default function FundCard({
                 </div>
               );
             })()}
-            <div className="stat" style={{ flexDirection: 'column', gap: 4 }}>
-              <span className="label">当日收益</span>
+            <div
+              className="stat"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (profit.profitToday != null) {
+                  onTodayPercentModeToggle?.(f.code);
+                }
+              }}
+              style={{
+                cursor: profit.profitToday != null ? 'pointer' : 'default',
+                flexDirection: 'column',
+                gap: 4,
+              }}
+              title={profit.profitToday != null ? '点击切换金额/百分比' : ''}
+            >
+              <span
+                className="label"
+                style={{ display: 'flex', alignItems: 'center', gap: 1 }}
+              >
+                当日收益{todayPercentModes?.[f.code] ? '(%)' : ''}
+                {profit.profitToday != null && <SwitchIcon />}
+              </span>
               <span
                 className={`value ${
                   profit.profitToday != null
@@ -302,7 +324,16 @@ export default function FundCard({
                 {profit.profitToday != null
                   ? masked
                     ? '******'
-                    : `${profit.profitToday > 0 ? '+' : profit.profitToday < 0 ? '-' : ''}¥${Math.abs(profit.profitToday).toFixed(2)}`
+                    : <>
+                        {profit.profitToday > 0 ? '+' : profit.profitToday < 0 ? '-' : ''}
+                        {todayPercentModes?.[f.code]
+                          ? `${Math.abs(
+                              holding?.cost * holding?.share
+                                ? (profit.profitToday / (holding.cost * holding.share)) * 100
+                                : 0,
+                            ).toFixed(2)}%`
+                          : `¥${Math.abs(profit.profitToday).toFixed(2)}`}
+                      </>
                   : '--'}
               </span>
             </div>

@@ -85,6 +85,12 @@
    NEXT_PUBLIC_Supabase_URL：Supabase控制台 → Project Settings → General → Project ID  
    NEXT_PUBLIC_Supabase_ANON_KEY： Supabase控制台 → Project Settings → API Keys → Publishable key
 
+   示例：
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://abcdefghijklmnop.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=xxxxxx
+   ```
+
 2. 邮件数量修改
 
     Supabase 免费项目自带每小时2条邮件服务。如果觉得额度不够，可以改成自己的邮箱SMTP。修改路径在 Supabase控制台 → Authentication → Email → SMTP Settings。  
@@ -103,7 +109,47 @@
 
     在 Supabase控制台 → Authentication → Sign In / Providers → Auth Providers → email 中，关闭 **Confirm email** 选项。这样用户注册后就不需要再去邮箱点击确认链接了，直接使用验证码登录即可。
 
-6. 目前项目用到的 sql 语句，查看项目 /doc/supabase.sql 文件。
+6. 配置 GitHub 登录（可选）
+
+   如需支持 GitHub OAuth 登录，需完成以下配置：
+
+   **第一步：在 GitHub 创建 OAuth App**
+   - 访问 GitHub → Settings → Developer settings → OAuth Apps → New OAuth App
+   - 填写信息：
+     - Application name：自定义应用名称
+     - Homepage URL：你的应用地址（如 `https://hzm0321.github.io/real-time-fund/`）
+     - Authorization callback URL：`https://<your-supabase-project-id>.supabase.co/auth/v1/callback`
+   - 创建后获取 **Client ID** 和 **Client Secret**
+
+   **第二步：在 Supabase 启用 GitHub Provider**
+   - Supabase控制台 → Authentication → Sign In / Providers → Auth Providers → GitHub
+   - 开启 **GitHub** 开关
+   - 填入 GitHub OAuth App 的 **Client ID** 和 **Client Secret**
+   - 点击 **Save** 保存
+
+   **第三步：配置站点 URL（重要）**
+   - Supabase控制台 → Authentication → URL Configuration
+   - **Site URL**：设置为你的应用主域名（如 `https://hzm0321.github.io/`）
+   - **Redirect URLs**：添加你的应用完整路径（如 `https://hzm0321.github.io/real-time-fund/`）
+
+   配置完成后，用户即可通过 GitHub 账号一键登录。
+
+7. 执行数据库初始化 SQL
+
+   项目需要创建 `user_configs` 表及相关策略才能使用云端同步功能。SQL 语句位于项目 `/doc/supabase.sql` 文件。
+
+   **执行步骤：**
+   - Supabase控制台 → SQL Editor → New query
+   - 复制 `/doc/supabase.sql` 文件中的全部内容，粘贴到编辑器
+   - 点击 **Run** 执行
+
+   SQL 脚本将完成以下操作：
+   - 创建 `user_configs` 表（存储用户配置数据）
+   - 启用行级安全（RLS），确保用户只能访问自己的数据
+   - 创建 SELECT / INSERT / UPDATE 策略
+   - 创建 `update_user_config_partial` 函数（用于增量更新配置）
+
+   执行成功后，可在 Table Editor 中看到 `user_configs` 表。
 
 更多 Supabase 相关内容查阅官方文档。
 
