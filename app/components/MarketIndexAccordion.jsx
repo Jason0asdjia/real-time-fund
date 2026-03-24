@@ -341,9 +341,9 @@ export default function MarketIndexAccordion({
   const stickyStyle = isMobile
     ? {
         position: 'fixed',
-        left: 10,
-        right: 10,
-        bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+        left: 14,
+        right: 14,
+        bottom: 'calc(20px + env(safe-area-inset-bottom, 0px))',
         zIndex: 55,
       }
     : {
