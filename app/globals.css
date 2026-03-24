@@ -1013,6 +1013,17 @@ input[type="number"] {
 }
 
 @media (max-width: 768px) {
+  html,
+  body {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+  }
+
   .input {
     font-size: 16px;
     /* 防止 iOS 在输入时自动放大 */
@@ -1024,7 +1035,7 @@ input[type="number"] {
   }
 
   .container {
-    padding: 10px;
+    padding: 4px;
     width: 100%;
     max-width: 100%;
     overflow-x: clip;
@@ -1205,7 +1216,9 @@ input[type="number"] {
 
 @media (max-width: 768px) {
   .footer {
-    margin-top: 12px;
+    margin-top: 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   }
 }
@@ -1645,6 +1658,12 @@ input[type="number"] {
   .mobile-fund-table {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .mobile-fund-table::-webkit-scrollbar {
+    display: none;
   }
 
   .mobile-fund-table-scroll {
@@ -1691,7 +1710,7 @@ input[type="number"] {
     position: sticky;
     left: 0;
     z-index: 2;
-    padding-left: 10px;
+    padding-left: 6px;
   }
 
   .mobile-fund-flex-header-row .mobile-fund-flex-name-cell {
@@ -1708,7 +1727,7 @@ input[type="number"] {
     display: flex;
     align-items: stretch;
     gap: 12px;
-    padding-left: 12px;
+    padding-left: 8px;
   }
 
   .mobile-fund-flex-metric-cell {
@@ -1735,8 +1754,8 @@ input[type="number"] {
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    left: 10px;
-    right: 10px;
+    left: 4px;
+    right: 4px;
     box-sizing: border-box;
     z-index: 45;
     background: color-mix(in srgb, var(--card) 96%, transparent);
@@ -1997,11 +2016,11 @@ input[type="number"] {
 
 @media (max-width: 768px) {
   .mobile-integrated-shell {
-    width: calc(100% + 20px);
-    margin: 0 -10px 0 -10px;
-    padding: 0 10px 12px;
+    width: calc(100% + 8px);
+    margin: 0 -4px 0 -4px;
+    padding: 0 4px 0;
     border: 1px solid var(--border);
-    border-radius: 0 0 18px 18px;
+    border-radius: 0;
     background: color-mix(in srgb, var(--card) 96%, transparent);
     box-shadow: none;
     overflow: visible;
@@ -2010,10 +2029,10 @@ input[type="number"] {
   .filter-bar {
     position: sticky;
     z-index: 40;
-    width: calc(100% + 20px);
+    width: calc(100% + 8px);
     background: rgba(15, 23, 42, 0.9);
-    margin: 0 -10px 10px -10px;
-    padding: 8px 10px;
+    margin: 0 -4px 10px -4px;
+    padding: 8px 4px;
     border-bottom: 1px solid var(--border);
     backdrop-filter: blur(16px);
     display: flex;
@@ -2068,9 +2087,9 @@ input[type="number"] {
 
   .group-summary-sticky {
     top: 175px;
-    width: calc(100% + 20px);
-    margin: 0 -10px 10px -10px;
-    padding: 0 10px 8px;
+    width: calc(100% + 8px);
+    margin: 0 -4px 10px -4px;
+    padding: 0 4px 8px;
     border-radius: 0;
     border-bottom: 1px solid var(--border);
   }
@@ -2146,7 +2165,7 @@ input[type="number"] {
 
   .group-summary-mobile-strip {
     margin-bottom: 0;
-    padding: 8px 10px 10px;
+    padding: 8px 4px 10px;
     border-radius: 0;
     border: none;
     border-bottom: 1px solid var(--border);

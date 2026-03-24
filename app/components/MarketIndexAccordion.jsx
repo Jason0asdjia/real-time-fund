@@ -343,7 +343,7 @@ export default function MarketIndexAccordion({
         position: 'fixed',
         left: 10,
         right: 10,
-        bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))',
+        bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
         zIndex: 55,
       }
     : {
