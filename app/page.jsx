@@ -72,6 +72,7 @@ import packageJson from '../package.json';
 import PcFundTable from './components/PcFundTable';
 import MobileFundTable from './components/MobileFundTable';
 import { useFundFuzzyMatcher } from './hooks/useFundFuzzyMatcher';
+import { useBodyScrollLock } from './hooks/useBodyScrollLock';
 import {
   Select,
   SelectContent,
@@ -486,17 +487,17 @@ export default function HomePage() {
     }, 350);
   };
 
-  const [holdingModal, setHoldingModal] = useState({ open: false, fund: null });
+  const [holdingModal, setHoldingModal] = useState({ open: false, fund: null, returnToActionModal: false });
   const [actionModal, setActionModal] = useState({ open: false, fund: null });
-  const [tradeModal, setTradeModal] = useState({ open: false, fund: null, type: 'buy' }); // type: 'buy' | 'sell'
-  const [dcaModal, setDcaModal] = useState({ open: false, fund: null });
-  const [clearConfirm, setClearConfirm] = useState(null); // { fund }
+  const [tradeModal, setTradeModal] = useState({ open: false, fund: null, type: 'buy', returnToActionModal: false }); // type: 'buy' | 'sell'
+  const [dcaModal, setDcaModal] = useState({ open: false, fund: null, returnToActionModal: false });
+  const [clearConfirm, setClearConfirm] = useState(null); // { fund, returnToActionModal }
   const [donateOpen, setDonateOpen] = useState(false);
   const [holdings, setHoldings] = useState({}); // { [code]: { share: number, cost: number } }
   const [pendingTrades, setPendingTrades] = useState([]); // [{ id, fundCode, share, date, ... }]
   const [transactions, setTransactions] = useState({}); // { [code]: [{ id, type, amount, share, price, date, timestamp }] }
   const [dcaPlans, setDcaPlans] = useState({}); // { [code]: { amount, feeRate, cycle, firstDate, enabled } }
-  const [historyModal, setHistoryModal] = useState({ open: false, fund: null });
+  const [historyModal, setHistoryModal] = useState({ open: false, fund: null, returnToActionModal: false });
   const [addHistoryModal, setAddHistoryModal] = useState({ open: false, fund: null });
   const [percentModes, setPercentModes] = useState({}); // { [code]: boolean }
   const [todayPercentModes, setTodayPercentModes] = useState({}); // { [code]: boolean }
@@ -1043,20 +1044,18 @@ export default function HomePage() {
   };
 
   const handleAction = (type, fund) => {
-    if (type !== 'history') {
-      setActionModal({ open: false, fund: null });
-    }
+    setActionModal({ open: false, fund: null });
 
     if (type === 'edit') {
-      setHoldingModal({ open: true, fund });
+      setHoldingModal({ open: true, fund, returnToActionModal: true });
     } else if (type === 'clear') {
-      setClearConfirm({ fund });
+      setClearConfirm({ fund, returnToActionModal: true });
     } else if (type === 'buy' || type === 'sell') {
-      setTradeModal({ open: true, fund, type });
+      setTradeModal({ open: true, fund, type, returnToActionModal: true });
     } else if (type === 'history') {
-      setHistoryModal({ open: true, fund });
+      setHistoryModal({ open: true, fund, returnToActionModal: true });
     } else if (type === 'dca') {
-      setDcaModal({ open: true, fund });
+      setDcaModal({ open: true, fund, returnToActionModal: true });
     }
   };
 
@@ -1360,6 +1359,7 @@ export default function HomePage() {
   const [scanProgress, setScanProgress] = useState({ stage: 'ocr', current: 0, total: 0 }); // stage: ocr | verify
   const [isOcrScan, setIsOcrScan] = useState(false); // 是否为拍照/图片识别触发的弹框
   const abortScanRef = useRef(false); // 终止扫描标记
+
   const fileInputRef = useRef(null);
   const ocrWorkerRef = useRef(null);
   const { resolveFundCodeByFuzzy } = useFundFuzzyMatcher();
@@ -1762,6 +1762,19 @@ export default function HomePage() {
   };
 
   const [cloudConfigModal, setCloudConfigModal] = useState({ open: false, userId: null });
+  const isAnyCustomOverlayOpen =
+    feedbackOpen ||
+    addResultOpen ||
+    successModal.open ||
+    cloudConfigModal.open ||
+    donateOpen ||
+    weChatOpen ||
+    loginModalOpen ||
+    scanModalOpen ||
+    scanConfirmModalOpen ||
+    isScanning ||
+    isScanImporting;
+  useBodyScrollLock(isAnyCustomOverlayOpen);
   const syncDebounceRef = useRef(null);
   const lastSyncedRef = useRef('');
   const skipSyncRef = useRef(false);
@@ -3755,71 +3768,6 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    const isAnyModalOpen =
-      feedbackOpen ||
-      addResultOpen ||
-      addFundToGroupOpen ||
-      groupManageOpen ||
-      groupModalOpen ||
-      successModal.open ||
-      cloudConfigModal.open ||
-      logoutConfirmOpen ||
-      holdingModal.open ||
-      actionModal.open ||
-      tradeModal.open ||
-      dcaModal.open ||
-      addHistoryModal.open ||
-      historyModal.open ||
-      loginModalOpen ||
-      !!clearConfirm ||
-      donateOpen ||
-      !!fundDeleteConfirm ||
-      !!groupFundRemoveConfirm ||
-      updateModalOpen ||
-      weChatOpen ||
-      scanModalOpen ||
-      scanConfirmModalOpen ||
-      isScanning ||
-      isScanImporting;
-
-    if (isAnyModalOpen) {
-      containerRef.current.style.overflow = 'hidden';
-    } else {
-      containerRef.current.style.overflow = '';
-    }
-
-    return () => {
-      containerRef.current.style.overflow = '';
-    };
-  }, [
-    feedbackOpen,
-    addResultOpen,
-    addFundToGroupOpen,
-    groupManageOpen,
-    groupModalOpen,
-    successModal.open,
-    cloudConfigModal.open,
-    logoutConfirmOpen,
-    holdingModal.open,
-    actionModal.open,
-    tradeModal.open,
-    dcaModal.open,
-    addHistoryModal.open,
-    historyModal.open,
-    loginModalOpen,
-    clearConfirm,
-    donateOpen,
-    fundDeleteConfirm,
-    groupFundRemoveConfirm,
-    updateModalOpen,
-    weChatOpen,
-    scanModalOpen,
-    scanConfirmModalOpen,
-    isScanning,
-    isScanImporting
-  ]);
-
-  useEffect(() => {
     const onKey = (ev) => {
       if (ev.key === 'Escape' && settingsOpen) setSettingsOpen(false);
     };
@@ -4949,7 +4897,14 @@ export default function HomePage() {
             type={tradeModal.type}
             fund={tradeModal.fund}
             holding={holdings[tradeModal.fund?.code]}
-            onClose={() => setTradeModal({ open: false, fund: null, type: 'buy' })}
+            onClose={() => {
+              const fund = tradeModal.fund;
+              const shouldReturn = tradeModal.returnToActionModal;
+              setTradeModal({ open: false, fund: null, type: 'buy', returnToActionModal: false });
+              if (shouldReturn && fund) {
+                setActionModal({ open: true, fund });
+              }
+            }}
             onConfirm={(data) => handleTrade(tradeModal.fund, data)}
             pendingTrades={pendingTrades}
             onDeletePending={(id) => {
@@ -4969,11 +4924,18 @@ export default function HomePage() {
           <DcaModal
             fund={dcaModal.fund}
             plan={dcaPlans[dcaModal.fund?.code]}
-            onClose={() => setDcaModal({ open: false, fund: null })}
+            onClose={() => {
+              const fund = dcaModal.fund;
+              const shouldReturn = dcaModal.returnToActionModal;
+              setDcaModal({ open: false, fund: null, returnToActionModal: false });
+              if (shouldReturn && fund) {
+                setActionModal({ open: true, fund });
+              }
+            }}
             onConfirm={(config) => {
               const code = config?.fundCode || dcaModal.fund?.code;
               if (!code) {
-                setDcaModal({ open: false, fund: null });
+                setDcaModal({ open: false, fund: null, returnToActionModal: false });
                 return;
               }
               setDcaPlans(prev => {
@@ -4990,7 +4952,7 @@ export default function HomePage() {
                 storageHelper.setItem('dcaPlans', JSON.stringify(next));
                 return next;
               });
-              setDcaModal({ open: false, fund: null });
+              setDcaModal({ open: false, fund: null, returnToActionModal: false });
               showToast('已保存定投计划', 'success');
             }}
           />
@@ -5013,7 +4975,14 @@ export default function HomePage() {
             fund={historyModal.fund}
             transactions={transactions[historyModal.fund?.code] || []}
             pendingTransactions={pendingTrades.filter(t => t.fundCode === historyModal.fund?.code)}
-            onClose={() => setHistoryModal({ open: false, fund: null })}
+            onClose={() => {
+              const fund = historyModal.fund;
+              const shouldReturn = historyModal.returnToActionModal;
+              setHistoryModal({ open: false, fund: null, returnToActionModal: false });
+              if (shouldReturn && fund) {
+                setActionModal({ open: true, fund });
+              }
+            }}
             onDeleteTransaction={(id) => handleDeleteTransaction(historyModal.fund?.code, id)}
             onAddHistory={() => setAddHistoryModal({ open: true, fund: historyModal.fund })}
             onDeletePending={(id) => {
@@ -5034,7 +5003,14 @@ export default function HomePage() {
             title="清空持仓"
             message={`确定要清空“${clearConfirm.fund?.name}”的所有持仓记录吗？此操作不可恢复。`}
             onConfirm={handleClearConfirm}
-            onCancel={() => setClearConfirm(null)}
+            onCancel={() => {
+              const fund = clearConfirm.fund;
+              const shouldReturn = clearConfirm.returnToActionModal;
+              setClearConfirm(null);
+              if (shouldReturn && fund) {
+                setActionModal({ open: true, fund });
+              }
+            }}
             confirmText="确认清空"
           />
         )}
@@ -5045,13 +5021,21 @@ export default function HomePage() {
           <HoldingEditModal
             fund={holdingModal.fund}
             holding={holdings[holdingModal.fund?.code]}
-            onClose={() => setHoldingModal({ open: false, fund: null })}
+            onClose={() => {
+              const fund = holdingModal.fund;
+              const shouldReturn = holdingModal.returnToActionModal;
+              setHoldingModal({ open: false, fund: null, returnToActionModal: false });
+              if (shouldReturn && fund) {
+                setActionModal({ open: true, fund });
+              }
+            }}
             onSave={(data) => handleSaveHolding(holdingModal.fund?.code, data)}
             onOpenTrade={() => {
               const f = holdingModal.fund;
               if (!f) return;
-              setHoldingModal({ open: false, fund: null });
-              setTradeModal({ open: true, fund: f, type: 'buy' });
+              const shouldReturn = holdingModal.returnToActionModal;
+              setHoldingModal({ open: false, fund: null, returnToActionModal: false });
+              setTradeModal({ open: true, fund: f, type: 'buy', returnToActionModal: shouldReturn });
             }}
           />
         )}

@@ -2,24 +2,25 @@ import { useEffect, useRef } from "react";
 
 // 全局状态：支持多个弹框“引用计数”式地共用一个滚动锁
 let scrollLockCount = 0;
-let lockedScrollY = 0;
-let originalBodyPosition = "";
-let originalBodyTop = "";
+let originalHtmlOverflow = "";
+let originalBodyOverflow = "";
+let originalBodyTouchAction = "";
+let originalBodyOverscrollBehavior = "";
 
 function lockBodyScroll() {
   scrollLockCount += 1;
 
-  // 只有第一个锁才真正修改 body，避免多弹框互相干扰
+  // 只有第一个锁才真正修改页面样式，避免多弹框互相干扰
   if (scrollLockCount === 1) {
-    lockedScrollY = window.scrollY || window.pageYOffset || 0;
-    originalBodyPosition = document.body.style.position || "";
-    originalBodyTop = document.body.style.top || "";
+    originalHtmlOverflow = document.documentElement.style.overflow || "";
+    originalBodyOverflow = document.body.style.overflow || "";
+    originalBodyTouchAction = document.body.style.touchAction || "";
+    originalBodyOverscrollBehavior = document.body.style.overscrollBehavior || "";
 
-    requestAnimationFrame(() => {
-      document.body.style.top = `-${lockedScrollY}px`;
-      document.body.style.width = "100%";
-      document.body.style.position = "fixed";
-    });
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+    document.body.style.overscrollBehavior = "contain";
   }
 }
 
@@ -28,17 +29,12 @@ function unlockBodyScroll() {
 
   scrollLockCount -= 1;
 
-  // 只有全部弹框都关闭时才恢复滚动位置
+  // 只有全部弹框都关闭时才恢复页面样式
   if (scrollLockCount === 0) {
-    const scrollY = lockedScrollY;
-
-    document.body.style.position = originalBodyPosition;
-    document.body.style.top = originalBodyTop;
-    document.body.style.width = "";
-
-    requestAnimationFrame(() => {
-      window.scrollTo(0, scrollY);
-    });
+    document.documentElement.style.overflow = originalHtmlOverflow;
+    document.body.style.overflow = originalBodyOverflow;
+    document.body.style.touchAction = originalBodyTouchAction;
+    document.body.style.overscrollBehavior = originalBodyOverscrollBehavior;
   }
 }
 

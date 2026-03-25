@@ -184,24 +184,35 @@ export default function DcaModal({ fund, plan, onClose, onConfirm }) {
     <Dialog open onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="glass card modal dca-modal"
+        className="glass card modal dca-modal z-[10000]"
         overlayClassName="modal-overlay"
         style={{
           maxWidth: '420px',
           maxHeight: '90vh',
           display: 'flex',
           flexDirection: 'column',
-          zIndex: 999,
+          zIndex: 10000,
           width: '90vw',
         }}
       >
         <DialogTitle className="sr-only">定投设置</DialogTitle>
+        <style>{`
+          .dca-modal-scroll::-webkit-scrollbar {
+            display: none;
+            width: 0;
+            height: 0;
+          }
+        `}</style>
         <div
-          className="scrollbar-y-styled"
+          className="dca-modal-scroll"
           style={{
             overflowY: 'auto',
             paddingRight: 4,
             flex: 1,
+            minHeight: 0,
+            paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
           }}
         >
           <div className="title" style={{ marginBottom: 20, justifyContent: 'space-between' }}>
@@ -209,7 +220,7 @@ export default function DcaModal({ fund, plan, onClose, onConfirm }) {
               <span style={{ fontSize: '20px' }}>🔁</span>
               <span>定投</span>
             </div>
-            <button className="icon-button" onClick={onClose} style={{ border: 'none', background: 'transparent' }}>
+            <button type="button" className="icon-button" onClick={onClose} style={{ border: 'none', background: 'transparent' }}>
               <CloseIcon width="20" height="20" />
             </button>
           </div>
@@ -356,6 +367,7 @@ export default function DcaModal({ fund, plan, onClose, onConfirm }) {
           style={{
             paddingTop: 12,
             marginTop: 4,
+            paddingBottom: 'max(2px, env(safe-area-inset-bottom, 0px))',
           }}
         >
           <div className="row" style={{ gap: 12 }}>
@@ -382,4 +394,3 @@ export default function DcaModal({ fund, plan, onClose, onConfirm }) {
     </Dialog>
   );
 }
-
