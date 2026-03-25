@@ -488,7 +488,8 @@ export default function MobileFundTable({
 
   const NAME_CELL_WIDTH = 148;
   const GAP = 0;
-  const LAST_COLUMN_EXTRA = 0;
+  const LAST_COLUMN_EXTRA = 2;
+  const METRICS_PADDING_LEFT = 8;
   const FALLBACK_WIDTHS = {
     fundName: 140,
     relatedSector: 120,
@@ -1079,7 +1080,7 @@ export default function MobileFundTable({
     const gapWidth = index > 0 ? GAP : 0;
     const trailingWidth = index === visibleMetricHeaders.length - 1 ? LAST_COLUMN_EXTRA : 0;
     return sum + width + gapWidth + trailingWidth;
-  }, 0);
+  }, visibleMetricHeaders.length > 0 ? METRICS_PADDING_LEFT : 0);
 
   const mobileTableWidth = NAME_CELL_WIDTH + metricsWidth;
   const tableWidthStyle = mobileTableWidth ? { width: `max(100%, ${mobileTableWidth}px)` } : { width: '100%' };

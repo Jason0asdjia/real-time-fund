@@ -519,11 +519,16 @@ export default function HomePage() {
   const todayStr = formatDate();
 
   const [isMobile, setIsMobile] = useState(false);
+  const [isTabletViewport, setIsTabletViewport] = useState(false);
   const [hoveredPcRowCode, setHoveredPcRowCode] = useState(null); // PC 列表行悬浮高亮
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+      const checkMobile = () => {
+        const width = window.innerWidth;
+        setIsMobile(width <= 768);
+        setIsTabletViewport(width >= 768 && width <= 1024);
+      };
       checkMobile();
       window.addEventListener('resize', checkMobile);
       return () => window.removeEventListener('resize', checkMobile);
@@ -1002,6 +1007,7 @@ export default function HomePage() {
   );
 
   const isIntegratedMobileListView = isMobile && viewMode === 'list' && displayFunds.length > 0;
+  const shouldShowTabletTopViewToggle = isTabletViewport && displayFunds.length > 0;
 
 
   // 自动滚动选中 Tab 到可视区域
@@ -4056,6 +4062,16 @@ export default function HomePage() {
               </svg>
             </button>
           )}
+          {shouldShowTabletTopViewToggle && (
+            <button
+              className="icon-button"
+              aria-label={viewMode === 'card' ? '切换到表格视图' : '切换到卡片视图'}
+              onClick={() => applyViewMode(viewMode === 'card' ? 'list' : 'card')}
+              title={viewMode === 'card' ? '切换到表格视图' : '切换到卡片视图'}
+            >
+              {viewMode === 'card' ? <ListIcon width="18" height="18" /> : <GridIcon width="18" height="18" />}
+            </button>
+          )}
           <RefreshButton
             refreshMs={refreshMs}
             manualRefresh={manualRefresh}
@@ -4346,7 +4362,7 @@ export default function HomePage() {
                 />
             )}
 
-            {!isMobile && (
+            {!isMobile && !isTabletViewport && (
             <div className={`sort-group ${isMobile ? 'sort-group-mobile' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div className={`view-toggle ${isMobile ? 'view-toggle-mobile' : ''}`} style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', padding: '2px' }}>
                 <button
