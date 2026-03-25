@@ -383,6 +383,7 @@ export default function MobileFundTable({
   const tableContainerRef = useRef(null);
   const portalHeaderRef = useRef(null);
   const suppressHorizontalSyncRef = useRef(false);
+  const suppressPortalHorizontalSyncRef = useRef(false);
   const [tableContainerWidth, setTableContainerWidth] = useState(0);
   const [isScrolled, setIsScrolled] = useState(false);
   const [showPortalHeader, setShowPortalHeader] = useState(false);
@@ -403,7 +404,7 @@ export default function MobileFundTable({
 
     const handleScroll = () => {
       setIsScrolled(tableEl.scrollLeft > 0);
-      if (suppressHorizontalSyncRef.current || !scrollSyncRef?.current) return;
+      if (suppressHorizontalSyncRef.current || suppressPortalHorizontalSyncRef.current || !scrollSyncRef?.current) return;
       scrollSyncRef.current.scrollLeft = tableEl.scrollLeft;
       scrollSyncRef.current.listeners.forEach((listener) => {
         listener(tableEl.scrollLeft);
@@ -473,15 +474,29 @@ export default function MobileFundTable({
 
     const applyPortalScrollLeft = (nextScrollLeft) => {
       if (Math.abs(portalEl.scrollLeft - nextScrollLeft) <= 1) return;
+      suppressPortalHorizontalSyncRef.current = true;
       portalEl.scrollLeft = nextScrollLeft;
+      requestAnimationFrame(() => {
+        suppressPortalHorizontalSyncRef.current = false;
+      });
+    };
+
+    const handlePortalScroll = () => {
+      if (suppressPortalHorizontalSyncRef.current) return;
+      scrollSyncRef.current.scrollLeft = portalEl.scrollLeft;
+      scrollSyncRef.current.listeners.forEach((listener) => {
+        listener(portalEl.scrollLeft);
+      });
     };
 
     scrollSyncRef.current.listeners.add(applyPortalScrollLeft);
     if (typeof scrollSyncRef.current.scrollLeft === 'number') {
       applyPortalScrollLeft(scrollSyncRef.current.scrollLeft);
     }
+    portalEl.addEventListener('scroll', handlePortalScroll, { passive: true });
 
     return () => {
+      portalEl.removeEventListener('scroll', handlePortalScroll);
       scrollSyncRef.current?.listeners?.delete(applyPortalScrollLeft);
     };
   }, [scrollSyncRef, showPortalHeader]);
