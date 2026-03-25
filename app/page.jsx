@@ -95,6 +95,7 @@ const getBrowserTimeZone = () => {
 const TZ = getBrowserTimeZone();
 dayjs.tz.setDefault(TZ);
 const nowInTz = () => dayjs().tz(TZ);
+const nowInMarketTz = () => dayjs().tz(DEFAULT_TZ);
 const toTz = (input) => (input ? dayjs.tz(input, TZ) : nowInTz());
 const formatDate = (input) => toTz(input).format('YYYY-MM-DD');
 const ALLOWED_GITHUB_LOGIN = (process.env.NEXT_PUBLIC_ALLOWED_GITHUB_LOGIN || '').trim().toLowerCase();
@@ -156,6 +157,7 @@ export default function HomePage() {
   const timerRef = useRef(null);
   const refreshCycleStartRef = useRef(Date.now());
   const refreshingRef = useRef(false);
+  const fundsRef = useRef([]);
   const isLoggingOutRef = useRef(false);
   const isExplicitLoginRef = useRef(false);
 
@@ -167,6 +169,10 @@ export default function HomePage() {
   const [showMarketIndexPc, setShowMarketIndexPc] = useState(true);
   const [showMarketIndexMobile, setShowMarketIndexMobile] = useState(true);
   const [isGroupSummarySticky, setIsGroupSummarySticky] = useState(false);
+
+  useEffect(() => {
+    fundsRef.current = funds;
+  }, [funds]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -589,7 +595,7 @@ export default function HomePage() {
 
   // 检查交易日状态
   const checkTradingDay = async () => {
-    const now = nowInTz();
+    const now = nowInMarketTz();
     const isWeekend = now.day() === 0 || now.day() === 6;
 
     // 周末直接判定为非交易日
@@ -634,12 +640,24 @@ export default function HomePage() {
   const getHoldingProfit = useCallback((fund, holding) => {
     if (!holding || !isNumber(holding.share)) return null;
 
+    const now = nowInMarketTz();
+    const minutes = now.hour() * 60 + now.minute();
+    const hasEnteredTodayOpen = isTradingDay && minutes >= 9 * 60 + 30;
     const hasTodayData = fund.jzrq === todayStr;
     const hasTodayValuation = isString(fund.gztime) && fund.gztime.startsWith(todayStr);
-    const canCalcTodayProfit = hasTodayData || hasTodayValuation;
+    const hasCurrentSessionProfit = hasTodayData || hasTodayValuation;
+    const hasLatestSessionProfit =
+      (isString(fund.jzrq) && fund.jzrq.length > 0) ||
+      (isString(fund.gztime) && fund.gztime.length > 0);
+    const shouldCarryForwardTodayProfit =
+      !hasCurrentSessionProfit &&
+      !hasEnteredTodayOpen &&
+      hasLatestSessionProfit;
+    const canCalcTodayProfit = hasCurrentSessionProfit || shouldCarryForwardTodayProfit;
 
-    // 如果是交易日且9点以后，且今日净值未出，则强制使用估值（隐藏涨跌幅列模式）
-    const useValuation = isTradingDay && !hasTodayData;
+    // 仅在当日 9:30 开盘后且今日净值未出时，使用实时估值计算当日收益。
+    // 开盘前、休市日与节假日沿用最近一个交易日的当日收益，避免次日清晨直接变成空白。
+    const useValuation = hasEnteredTodayOpen && !hasTodayData;
 
     let currentNav;
     let profitToday;
@@ -2266,7 +2284,7 @@ export default function HomePage() {
           setFunds(deduped);
           storageHelper.setItem('funds', JSON.stringify(deduped));
           const codes = Array.from(new Set(deduped.map((f) => f.code)));
-          if (codes.length && shouldRefreshFromLocal) refreshAll(codes);
+          if (codes.length && shouldRefreshFromLocal) refreshAll(codes, { indicate: false });
         }
       const savedMs = parseInt(localStorage.getItem('refreshMs') || '30000', 10);
       if (Number.isFinite(savedMs) && savedMs >= 5000) {
@@ -2701,27 +2719,37 @@ export default function HomePage() {
     }
   };
 
-  const refreshAll = async (codes) => {
+  const refreshAll = async (codes, options = {}) => {
     if (refreshingRef.current) return;
+    const { indicate = true } = options;
     refreshingRef.current = true;
-    setRefreshing(true);
     const uniqueCodes = Array.from(new Set(codes));
+    const concurrency = Math.min(6, Math.max(1, uniqueCodes.length));
+    const fallbackByCode = new Map(fundsRef.current.map((fund) => [fund.code, fund]));
+    if (indicate) {
+      setRefreshing(true);
+    }
     try {
       const updated = [];
-      for (const c of uniqueCodes) {
-        try {
-          const data = await fetchFundData(c);
-          updated.push(data);
-        } catch (e) {
-          console.error(`刷新基金 ${c} 失败`, e);
-          // 失败时从当前 state 中寻找旧数据
-          setFunds(prev => {
-            const old = prev.find((f) => f.code === c);
+      let cursor = 0;
+
+      const workers = Array.from({ length: concurrency }, async () => {
+        while (cursor < uniqueCodes.length) {
+          const currentIndex = cursor;
+          cursor += 1;
+          const code = uniqueCodes[currentIndex];
+          try {
+            const data = await fetchFundData(code);
+            if (data) updated.push(data);
+          } catch (e) {
+            console.error(`刷新基金 ${code} 失败`, e);
+            const old = fallbackByCode.get(code);
             if (old) updated.push(old);
-            return prev;
-          });
+          }
         }
-      }
+      });
+
+      await Promise.all(workers);
 
       if (updated.length > 0) {
         setFunds(prev => {
@@ -2755,12 +2783,14 @@ export default function HomePage() {
       console.error(e);
     } finally {
       refreshingRef.current = false;
-      setRefreshing(false);
+      if (indicate) {
+        setRefreshing(false);
+      }
       refreshCycleStartRef.current = Date.now();
       try {
         await processPendingQueue();
-      }catch (e) {
-        showToast('待交易队列计算出错', 'error')
+      } catch (e) {
+        showToast('待交易队列计算出错', 'error');
       }
     }
   };
@@ -3316,7 +3346,7 @@ export default function HomePage() {
 
       if (nextFunds.length) {
         const codes = Array.from(new Set(nextFunds.map((f) => f.code)));
-        if (codes.length) await refreshAll(codes);
+        if (codes.length) await refreshAll(codes, { indicate: false });
         // 刷新完成后,强制同步本地localStorage 的 funds 数据到云端
         const currentUserId = userIdRef.current || user?.id;
         if (currentUserId) {
