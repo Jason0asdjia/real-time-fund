@@ -404,10 +404,18 @@ export default function MobileFundTable({
 
     const handleScroll = () => {
       setIsScrolled(tableEl.scrollLeft > 0);
-      if (suppressHorizontalSyncRef.current || suppressPortalHorizontalSyncRef.current || !scrollSyncRef?.current) return;
-      scrollSyncRef.current.scrollLeft = tableEl.scrollLeft;
-      scrollSyncRef.current.listeners.forEach((listener) => {
-        listener(tableEl.scrollLeft);
+      if (scrollSyncRef?.current) {
+        scrollSyncRef.current.scrollLeft = tableEl.scrollLeft;
+      }
+
+      const portalEl = portalHeaderRef.current;
+      if (!portalEl || suppressHorizontalSyncRef.current || suppressPortalHorizontalSyncRef.current) return;
+      if (Math.abs(portalEl.scrollLeft - tableEl.scrollLeft) <= 1) return;
+
+      suppressPortalHorizontalSyncRef.current = true;
+      portalEl.scrollLeft = tableEl.scrollLeft;
+      requestAnimationFrame(() => {
+        suppressPortalHorizontalSyncRef.current = false;
       });
     };
 
@@ -416,29 +424,6 @@ export default function MobileFundTable({
 
     return () => {
       tableEl.removeEventListener('scroll', handleScroll);
-    };
-  }, [scrollSyncRef]);
-
-  useEffect(() => {
-    const tableEl = tableContainerRef.current;
-    if (!tableEl || !scrollSyncRef?.current) return;
-
-    const applyScrollLeft = (nextScrollLeft) => {
-      if (Math.abs(tableEl.scrollLeft - nextScrollLeft) <= 1) return;
-      suppressHorizontalSyncRef.current = true;
-      tableEl.scrollLeft = nextScrollLeft;
-      requestAnimationFrame(() => {
-        suppressHorizontalSyncRef.current = false;
-      });
-    };
-
-    scrollSyncRef.current.listeners.add(applyScrollLeft);
-    if (typeof scrollSyncRef.current.scrollLeft === 'number') {
-      applyScrollLeft(scrollSyncRef.current.scrollLeft);
-    }
-
-    return () => {
-      scrollSyncRef.current?.listeners?.delete(applyScrollLeft);
     };
   }, [scrollSyncRef]);
 
@@ -470,34 +455,31 @@ export default function MobileFundTable({
 
   useEffect(() => {
     const portalEl = portalHeaderRef.current;
-    if (!portalEl || !scrollSyncRef?.current) return;
+    const tableEl = tableContainerRef.current;
+    if (!portalEl || !tableEl) return;
 
-    const applyPortalScrollLeft = (nextScrollLeft) => {
-      if (Math.abs(portalEl.scrollLeft - nextScrollLeft) <= 1) return;
-      suppressPortalHorizontalSyncRef.current = true;
-      portalEl.scrollLeft = nextScrollLeft;
-      requestAnimationFrame(() => {
-        suppressPortalHorizontalSyncRef.current = false;
-      });
-    };
+    if (Math.abs(portalEl.scrollLeft - tableEl.scrollLeft) > 1) {
+      portalEl.scrollLeft = tableEl.scrollLeft;
+    }
 
     const handlePortalScroll = () => {
       if (suppressPortalHorizontalSyncRef.current) return;
-      scrollSyncRef.current.scrollLeft = portalEl.scrollLeft;
-      scrollSyncRef.current.listeners.forEach((listener) => {
-        listener(portalEl.scrollLeft);
+      if (scrollSyncRef?.current) {
+        scrollSyncRef.current.scrollLeft = portalEl.scrollLeft;
+      }
+      if (Math.abs(tableEl.scrollLeft - portalEl.scrollLeft) <= 1) return;
+
+      suppressHorizontalSyncRef.current = true;
+      tableEl.scrollLeft = portalEl.scrollLeft;
+      requestAnimationFrame(() => {
+        suppressHorizontalSyncRef.current = false;
       });
     };
 
-    scrollSyncRef.current.listeners.add(applyPortalScrollLeft);
-    if (typeof scrollSyncRef.current.scrollLeft === 'number') {
-      applyPortalScrollLeft(scrollSyncRef.current.scrollLeft);
-    }
     portalEl.addEventListener('scroll', handlePortalScroll, { passive: true });
 
     return () => {
       portalEl.removeEventListener('scroll', handlePortalScroll);
-      scrollSyncRef.current?.listeners?.delete(applyPortalScrollLeft);
     };
   }, [scrollSyncRef, showPortalHeader]);
 
