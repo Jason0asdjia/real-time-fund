@@ -153,6 +153,7 @@ function ScanButton({ onClick, disabled }) {
 
 export default function HomePage() {
   const [funds, setFunds] = useState([]);
+  const [localInitDone, setLocalInitDone] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const timerRef = useRef(null);
@@ -2374,6 +2375,7 @@ export default function HomePage() {
       } catch { }
       if (!cancelled) {
         hasLocalTabInitRef.current = true;
+        setLocalInitDone(true);
       }
     };
     init();
@@ -4435,7 +4437,33 @@ export default function HomePage() {
             )}
           </div>
 
-          {displayFunds.length === 0 ? (
+          {!localInitDone ? (
+            <div
+              className="glass card empty"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '60px 20px',
+                minHeight: isMobile ? 240 : 280,
+              }}
+            >
+              <div
+                className="loading-spinner"
+                style={{
+                  width: 28,
+                  height: 28,
+                  border: '3px solid var(--border)',
+                  borderTopColor: 'var(--primary)',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                  marginBottom: 16,
+                }}
+              />
+              <div className="muted">正在加载基金数据...</div>
+            </div>
+          ) : displayFunds.length === 0 ? (
             <EmptyStateCard
               fundsLength={funds.length}
               currentTab={currentTab}

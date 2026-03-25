@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   flexRender,
   getCoreRowModel,
@@ -69,6 +69,7 @@ export default function FundHistoryNetValueModal({ open, onOpenChange, code, the
   const [visibleCount, setVisibleCount] = useState(30);
   const [isMobile, setIsMobile] = useState(false);
   const scrollRef = useRef(null);
+  const contentRef = useRef(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -105,6 +106,62 @@ export default function FundHistoryNetValueModal({ open, onOpenChange, code, the
     };
   }, [open, code]);
 
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') return undefined;
+
+    const hiddenNodes = [];
+    const selectors = [
+      '[data-slot="dialog-overlay"]',
+      '[data-slot="dialog-content"]',
+    ];
+
+    selectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((node) => {
+        if (!(node instanceof HTMLElement)) return;
+        if (node.classList.contains('fund-history-net-value-modal')) return;
+        if (node.classList.contains('fund-history-net-value-modal-overlay')) return;
+
+        hiddenNodes.push({
+          node,
+          visibility: node.style.visibility,
+          pointerEvents: node.style.pointerEvents,
+        });
+        node.style.visibility = 'hidden';
+        node.style.pointerEvents = 'none';
+      });
+    });
+
+    return () => {
+      hiddenNodes.forEach(({ node, visibility, pointerEvents }) => {
+        node.style.visibility = visibility;
+        node.style.pointerEvents = pointerEvents;
+      });
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') return undefined;
+
+    const handlePointerDown = (event) => {
+      const contentNode = contentRef.current;
+      const target = event.target;
+      if (!contentNode || !(target instanceof Node)) return;
+      if (!contentNode.contains(target)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function') {
+          event.stopImmediatePropagation();
+        }
+        onOpenChange?.(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+    };
+  }, [open, onOpenChange]);
+
   const table = useReactTable({
     data,
     columns,
@@ -134,7 +191,16 @@ export default function FundHistoryNetValueModal({ open, onOpenChange, code, the
   };
 
   const header = (
-    <div className="title" style={{ marginBottom: 12, justifyContent: 'space-between' }}>
+    <div
+      className="title"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        marginBottom: 12,
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span>历史净值</span>
       </div>
@@ -151,11 +217,14 @@ export default function FundHistoryNetValueModal({ open, onOpenChange, code, the
 
   const body = (
     <div
+      className="fund-history-net-value-modal-scroll"
       ref={scrollRef}
       style={{
-        maxHeight: '60vh',
+        maxHeight: isMobile ? '50vh' : '54vh',
         overflowY: 'auto',
-        paddingRight: 4,
+        paddingRight: 0,
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
       }}
       onScroll={handleScroll}
     >
@@ -260,12 +329,14 @@ export default function FundHistoryNetValueModal({ open, onOpenChange, code, the
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="glass z-[10000]"
-        overlayClassName="modal-overlay z-[9999]"
+        className="glass z-[10000] fund-history-net-value-modal"
+        overlayClassName="modal-overlay fund-history-net-value-modal-overlay z-[9999]"
+        onPointerDownOutside={() => onOpenChange?.(false)}
+        onInteractOutside={() => onOpenChange?.(false)}
         style={{
           maxWidth: '520px',
           width: '90vw',
-          maxHeight: '80vh',
+          maxHeight: isMobile ? '68vh' : '74vh',
           display: 'flex',
           flexDirection: 'column',
           padding: 0,
@@ -273,7 +344,7 @@ export default function FundHistoryNetValueModal({ open, onOpenChange, code, the
         }}
       >
         <DialogTitle className="sr-only">历史净值</DialogTitle>
-        <div className="flex flex-col px-5 pb-5 pt-4">
+        <div ref={contentRef} className="flex flex-col px-5 pb-5 pt-4">
           {header}
           {body}
         </div>
