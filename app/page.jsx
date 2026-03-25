@@ -67,7 +67,7 @@ import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { toast as sonnerToast } from 'sonner';
 import { recordValuation, getAllValuationSeries, clearFund } from './lib/valuationTimeseries';
 import { loadHolidaysForYears, isTradingDay as isDateTradingDay } from './lib/tradingCalendar';
-import { parseFundTextWithLLM, fetchFundData, fetchLatestRelease, fetchShanghaiIndexDate, fetchSmartFundNetValue, searchFunds } from './api/fund';
+import { parseFundTextWithLLM, fetchFundData, fetchFundEstimateData, fetchLatestRelease, fetchShanghaiIndexDate, fetchSmartFundNetValue, searchFunds } from './api/fund';
 import packageJson from '../package.json';
 import PcFundTable from './components/PcFundTable';
 import MobileFundTable from './components/MobileFundTable';
@@ -157,6 +157,8 @@ export default function HomePage() {
   const timerRef = useRef(null);
   const refreshCycleStartRef = useRef(Date.now());
   const refreshingRef = useRef(false);
+  const refreshRunIdRef = useRef(0);
+  const refreshMetaRef = useRef({ indicate: false, mode: null });
   const fundsRef = useRef([]);
   const isLoggingOutRef = useRef(false);
   const isExplicitLoginRef = useRef(false);
@@ -2594,6 +2596,7 @@ export default function HomePage() {
     refreshCycleStartRef.current = Date.now();
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       const codes = Array.from(new Set(funds.map((f) => f.code)));
       if (codes.length) refreshAll(codes);
     }, refreshMs);
@@ -2721,8 +2724,16 @@ export default function HomePage() {
 
   const refreshAll = async (codes, options = {}) => {
     if (refreshingRef.current) return;
-    const { indicate = true } = options;
+    const {
+      indicate = true,
+      mode = 'full',
+      onComplete = null,
+    } = options;
+    if (typeof document !== 'undefined' && document.hidden) return;
     refreshingRef.current = true;
+    refreshMetaRef.current = { indicate, mode };
+    const currentRunId = refreshRunIdRef.current + 1;
+    refreshRunIdRef.current = currentRunId;
     const uniqueCodes = Array.from(new Set(codes));
     const concurrency = Math.min(6, Math.max(1, uniqueCodes.length));
     const fallbackByCode = new Map(fundsRef.current.map((fund) => [fund.code, fund]));
@@ -2735,13 +2746,19 @@ export default function HomePage() {
 
       const workers = Array.from({ length: concurrency }, async () => {
         while (cursor < uniqueCodes.length) {
+          if (refreshRunIdRef.current !== currentRunId) return;
           const currentIndex = cursor;
           cursor += 1;
           const code = uniqueCodes[currentIndex];
           try {
-            const data = await fetchFundData(code);
+            const previousFund = fallbackByCode.get(code) || null;
+            const data = mode === 'estimate'
+              ? await fetchFundEstimateData(code, previousFund)
+              : await fetchFundData(code, { previousFund });
+            if (refreshRunIdRef.current !== currentRunId) return;
             if (data) updated.push(data);
           } catch (e) {
+            if (refreshRunIdRef.current !== currentRunId) return;
             console.error(`刷新基金 ${code} 失败`, e);
             const old = fallbackByCode.get(code);
             if (old) updated.push(old);
@@ -2750,6 +2767,7 @@ export default function HomePage() {
       });
 
       await Promise.all(workers);
+      if (refreshRunIdRef.current !== currentRunId) return;
 
       if (updated.length > 0) {
         setFunds(prev => {
@@ -2782,18 +2800,53 @@ export default function HomePage() {
     } catch (e) {
       console.error(e);
     } finally {
-      refreshingRef.current = false;
-      if (indicate) {
-        setRefreshing(false);
-      }
-      refreshCycleStartRef.current = Date.now();
-      try {
-        await processPendingQueue();
-      } catch (e) {
-        showToast('待交易队列计算出错', 'error');
+      if (refreshRunIdRef.current === currentRunId) {
+        refreshingRef.current = false;
+        refreshMetaRef.current = { indicate: false, mode: null };
+        if (indicate) {
+          setRefreshing(false);
+        }
+        refreshCycleStartRef.current = Date.now();
+        try {
+          await processPendingQueue();
+        } catch (e) {
+          showToast('待交易队列计算出错', 'error');
+        }
+        if (typeof onComplete === 'function') {
+          onComplete();
+        }
       }
     }
   };
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+
+    const cancelRefresh = () => {
+      refreshRunIdRef.current += 1;
+      refreshingRef.current = false;
+      refreshMetaRef.current = { indicate: false, mode: null };
+      setRefreshing(false);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        cancelRefresh();
+      }
+    };
+
+    const handlePageHide = () => {
+      cancelRefresh();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, []);
 
   const toggleViewMode = () => {
     const nextMode = viewMode === 'card' ? 'list' : 'card';
@@ -2936,10 +2989,28 @@ export default function HomePage() {
   };
 
   const manualRefresh = async () => {
-    if (refreshingRef.current) return;
     const codes = Array.from(new Set(funds.map((f) => f.code)));
     if (!codes.length) return;
-    await refreshAll(codes);
+    if (refreshingRef.current) {
+      const isSilentFullRefresh =
+        refreshMetaRef.current.indicate === false &&
+        refreshMetaRef.current.mode === 'full';
+      if (!isSilentFullRefresh) return;
+      refreshRunIdRef.current += 1;
+      refreshingRef.current = false;
+      refreshMetaRef.current = { indicate: false, mode: null };
+      setRefreshing(false);
+    }
+    await refreshAll(codes, {
+      mode: 'estimate',
+      onComplete: () => {
+        if (typeof document !== 'undefined' && document.hidden) return;
+        window.setTimeout(() => {
+          if (refreshingRef.current) return;
+          refreshAll(codes, { indicate: false, mode: 'full' });
+        }, 0);
+      }
+    });
   };
 
   const saveSettings = (e, secondsOverride, showMarketIndexOverride, isMobileOverride) => {

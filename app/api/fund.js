@@ -402,6 +402,23 @@ export const fetchFundDataFallback = async (c) => {
   });
 };
 
+export const fetchFundEstimateData = async (c, previousFund = null) => {
+  const gzData = await requestFundGzData(c).catch(() => null);
+  if (!gzData) {
+    return previousFund;
+  }
+
+  return {
+    ...(previousFund || {}),
+    ...gzData,
+    code: gzData.code || previousFund?.code || c,
+    name: gzData.name || previousFund?.name || '',
+    holdings: Array.isArray(previousFund?.holdings) ? previousFund.holdings : [],
+    holdingsReportDate: previousFund?.holdingsReportDate ?? null,
+    holdingsIsLastQuarter: previousFund?.holdingsIsLastQuarter === true,
+  };
+};
+
 export const fetchFundData = async (c, options = {}) => {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     throw new Error('无浏览器环境');
