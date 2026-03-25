@@ -1751,7 +1751,7 @@ input[type="number"] {
 
   .mobile-fund-table-portal-header {
     position: fixed;
-    overflow-x: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -1761,6 +1761,7 @@ input[type="number"] {
     z-index: 45;
     background: color-mix(in srgb, var(--card) 96%, transparent);
     backdrop-filter: blur(14px);
+    touch-action: pan-y;
   }
   .mobile-fund-table-portal-header::-webkit-scrollbar {
     display: none;

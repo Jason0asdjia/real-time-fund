@@ -382,8 +382,6 @@ export default function MobileFundTable({
   const [cardSheetRow, setCardSheetRow] = useState(null);
   const tableContainerRef = useRef(null);
   const portalHeaderRef = useRef(null);
-  const suppressHorizontalSyncRef = useRef(false);
-  const suppressPortalHorizontalSyncRef = useRef(false);
   const [tableContainerWidth, setTableContainerWidth] = useState(0);
   const [isScrolled, setIsScrolled] = useState(false);
   const [showPortalHeader, setShowPortalHeader] = useState(false);
@@ -409,14 +407,9 @@ export default function MobileFundTable({
       }
 
       const portalEl = portalHeaderRef.current;
-      if (!portalEl || suppressHorizontalSyncRef.current || suppressPortalHorizontalSyncRef.current) return;
+      if (!portalEl) return;
       if (Math.abs(portalEl.scrollLeft - tableEl.scrollLeft) <= 1) return;
-
-      suppressPortalHorizontalSyncRef.current = true;
       portalEl.scrollLeft = tableEl.scrollLeft;
-      requestAnimationFrame(() => {
-        suppressPortalHorizontalSyncRef.current = false;
-      });
     };
 
     handleScroll();
@@ -462,24 +455,7 @@ export default function MobileFundTable({
       portalEl.scrollLeft = tableEl.scrollLeft;
     }
 
-    const handlePortalScroll = () => {
-      if (suppressPortalHorizontalSyncRef.current) return;
-      if (scrollSyncRef?.current) {
-        scrollSyncRef.current.scrollLeft = portalEl.scrollLeft;
-      }
-      if (Math.abs(tableEl.scrollLeft - portalEl.scrollLeft) <= 1) return;
-
-      suppressHorizontalSyncRef.current = true;
-      tableEl.scrollLeft = portalEl.scrollLeft;
-      requestAnimationFrame(() => {
-        suppressHorizontalSyncRef.current = false;
-      });
-    };
-
-    portalEl.addEventListener('scroll', handlePortalScroll, { passive: true });
-
     return () => {
-      portalEl.removeEventListener('scroll', handlePortalScroll);
     };
   }, [scrollSyncRef, showPortalHeader]);
 
