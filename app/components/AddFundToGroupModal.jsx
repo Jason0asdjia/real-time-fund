@@ -50,95 +50,83 @@ export default function AddFundToGroupModal({ allFunds, currentGroupCodes, holdi
     <Dialog open onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="glass card modal"
+        className="glass card modal z-[10000]"
         overlayClassName="modal-overlay"
         style={{ maxWidth: '500px', width: '90vw', zIndex: 99 }}
       >
         <style>{`
-          .group-manage-list-container::-webkit-scrollbar {
+          .add-fund-to-group-list-container::-webkit-scrollbar {
             width: 6px;
           }
-          .group-manage-list-container::-webkit-scrollbar-track {
+          .add-fund-to-group-list-container::-webkit-scrollbar-track {
             background: transparent;
           }
-          .group-manage-list-container::-webkit-scrollbar-thumb {
+          .add-fund-to-group-list-container::-webkit-scrollbar-thumb {
             background-color: var(--border);
             border-radius: 3px;
             box-shadow: none;
           }
-          .group-manage-list-container::-webkit-scrollbar-thumb:hover {
+          .add-fund-to-group-list-container::-webkit-scrollbar-thumb:hover {
             background-color: var(--muted);
           }
         `}</style>
         <DialogTitle className="sr-only">添加基金到分组</DialogTitle>
-        <div className="title" style={{ marginBottom: 20, justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="title add-fund-to-group-modal__header" style={{ marginBottom: 16, justifyContent: 'space-between' }}>
+          <div className="add-fund-to-group-modal__title">
             <PlusIcon width="20" height="20" />
             <span>添加基金到分组</span>
           </div>
-          <button className="icon-button" onClick={onClose} style={{ border: 'none', background: 'transparent' }}>
+          <button
+            className="icon-button add-fund-to-group-modal__close"
+            onClick={onClose}
+            style={{ border: 'none', background: 'transparent' }}
+            type="button"
+          >
             <CloseIcon width="20" height="20" />
           </button>
         </div>
 
-        <div style={{ marginBottom: 16, position: 'relative' }}>
-          <Search
-            width="16"
-            height="16"
-            className="muted"
-            style={{
-              position: 'absolute',
-              left: 12,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              pointerEvents: 'none',
-            }}
-          />
+        <div className="add-fund-to-group-modal__search">
+          <Search width="18" height="18" className="muted add-fund-to-group-modal__search-icon" />
           <input
             type="text"
-            className="input no-zoom"
+            className="input no-zoom add-fund-to-group-modal__search-input"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="搜索基金名称或编号"
-            style={{
-              width: '100%',
-              paddingLeft: 36,
-            }}
           />
         </div>
 
-        <div
-          className="group-manage-list-container"
-          style={{
-            maxHeight: '50vh',
-            overflowY: 'auto',
-            paddingRight: '4px',
-            scrollbarWidth: 'thin',
-            scrollbarColor: 'var(--border) transparent',
-          }}
-        >
+        <div className="add-fund-to-group-list-container">
           {availableFunds.length === 0 ? (
-            <div className="empty-state muted" style={{ textAlign: 'center', padding: '40px 0' }}>
+            <div className="empty-state muted add-fund-to-group-modal__empty">
               <p>{searchQuery.trim() ? '未找到匹配的基金' : '所有基金已在该分组中'}</p>
             </div>
           ) : (
-            <div className="group-manage-list">
+            <div className="group-manage-list add-fund-to-group-modal__list">
               {availableFunds.map((fund) => (
                 <div
                   key={fund.code}
-                  className={`group-manage-item glass ${selected.has(fund.code) ? 'selected' : ''}`}
+                  className={`group-manage-item glass add-fund-to-group-modal__item ${selected.has(fund.code) ? 'selected' : ''}`}
                   onClick={() => toggleSelect(fund.code)}
-                  style={{ cursor: 'pointer' }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleSelect(fund.code);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
                 >
-                  <div className="checkbox" style={{ marginRight: 12 }}>
+                  <div className="checkbox add-fund-to-group-modal__checkbox">
                     {selected.has(fund.code) && <div className="checked-mark" />}
                   </div>
-                  <div className="fund-info" style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600 }}>{fund.name}</div>
-                    <div className="muted" style={{ fontSize: '12px' }}>#{fund.code}</div>
+                  <div className="fund-info add-fund-to-group-modal__fund-info">
+                    <div className="add-fund-to-group-modal__fund-name">{fund.name}</div>
+                    <div className="muted add-fund-to-group-modal__fund-code">#{fund.code}</div>
                     {getHoldingAmount(fund) != null && (
-                      <div className="muted" style={{ fontSize: '12px', marginTop: 2 }}>
-                        持仓金额：<span style={{ color: 'var(--foreground)', fontWeight: 500 }}>¥{getHoldingAmount(fund).toFixed(2)}</span>
+                      <div className="muted add-fund-to-group-modal__fund-amount">
+                        持仓金额：<span className="add-fund-to-group-modal__fund-amount-value">¥{getHoldingAmount(fund).toFixed(2)}</span>
                       </div>
                     )}
                   </div>
@@ -148,15 +136,17 @@ export default function AddFundToGroupModal({ allFunds, currentGroupCodes, holdi
           )}
         </div>
 
-        <div className="row" style={{ marginTop: 24, gap: 12 }}>
-          <button className="button secondary" onClick={onClose} style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'var(--text)' }}>取消</button>
+        <div className="row add-fund-to-group-modal__footer" style={{ marginTop: 20 }}>
+          <button className="button secondary add-fund-to-group-modal__action" onClick={onClose} type="button">
+            取消
+          </button>
           <button
-            className="button"
+            className="button add-fund-to-group-modal__action"
             onClick={() => onAdd(Array.from(selected))}
             disabled={selected.size === 0}
-            style={{ flex: 1 }}
+            type="button"
           >
-            确定 ({selected.size})
+            确定（{selected.size}）
           </button>
         </div>
       </DialogContent>

@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -51,6 +51,7 @@ const MOBILE_COLUMN_HEADERS = {
   todayProfit: '当日收益',
   holdingProfit: '持有收益',
 };
+const MOBILE_LOCAL_SORT_KEYS = new Set(['latestNav', 'estimateNav', 'holdingDays', 'todayProfit']);
 
 const RowSortableContext = createContext(null);
 
@@ -311,10 +312,31 @@ export default function MobileFundTable({
   };
 
   const [settingModalOpen, setSettingModalOpen] = useState(false);
+  const [mobileLocalSort, setMobileLocalSort] = useState({ sortBy: 'default', sortOrder: 'desc' });
+
+  const effectiveSortBy = MOBILE_LOCAL_SORT_KEYS.has(mobileLocalSort.sortBy) ? mobileLocalSort.sortBy : sortBy;
+  const effectiveSortOrder = MOBILE_LOCAL_SORT_KEYS.has(mobileLocalSort.sortBy) ? mobileLocalSort.sortOrder : sortOrder;
 
   const toggleSort = (nextSortBy) => {
-    if (!onSortChange || !nextSortBy) return;
+    if (!nextSortBy) return;
+
+    if (MOBILE_LOCAL_SORT_KEYS.has(nextSortBy)) {
+      if (mobileLocalSort.sortBy !== nextSortBy) {
+        setMobileLocalSort({ sortBy: nextSortBy, sortOrder: 'desc' });
+        return;
+      }
+      if (mobileLocalSort.sortOrder === 'desc') {
+        setMobileLocalSort({ sortBy: nextSortBy, sortOrder: 'asc' });
+        return;
+      }
+      setMobileLocalSort({ sortBy: 'default', sortOrder: 'desc' });
+      return;
+    }
+
+    if (!onSortChange) return;
+
     if (sortBy !== nextSortBy) {
+      setMobileLocalSort({ sortBy: 'default', sortOrder: 'desc' });
       onSortChange(nextSortBy, 'desc');
       return;
     }
@@ -325,8 +347,8 @@ export default function MobileFundTable({
     onSortChange('default', 'desc');
   };
 
-  const renderSortLabel = (label, sortKey, align = 'left') => {
-    const active = sortBy === sortKey;
+  const renderSortLabel = useCallback((label, sortKey, align = 'left') => {
+    const active = effectiveSortBy === sortKey;
     return (
       <button
         type="button"
@@ -338,16 +360,16 @@ export default function MobileFundTable({
       >
         <span>{label}</span>
         <span className="mobile-header-sort-arrows" aria-hidden="true">
-          <span style={{ opacity: active && sortOrder === 'asc' ? 1 : 0.32 }}>▲</span>
-          <span style={{ opacity: active && sortOrder === 'desc' ? 1 : 0.32 }}>▼</span>
+          <span style={{ opacity: active && effectiveSortOrder === 'asc' ? 1 : 0.32 }}>▲</span>
+          <span style={{ opacity: active && effectiveSortOrder === 'desc' ? 1 : 0.32 }}>▼</span>
         </span>
       </button>
     );
-  };
+  }, [effectiveSortBy, effectiveSortOrder, toggleSort]);
 
   useEffect(() => {
-    if (sortBy !== 'default') setIsNameSortMode(false);
-  }, [sortBy]);
+    if (effectiveSortBy !== 'default') setIsNameSortMode(false);
+  }, [effectiveSortBy]);
 
   // 排序模式下，点击页面任意区域（含表格外）退出排序；使用冒泡阶段，避免先于排序按钮处理
   useEffect(() => {
@@ -465,13 +487,13 @@ export default function MobileFundTable({
   }, [scrollSyncRef, showPortalHeader]);
 
   const NAME_CELL_WIDTH = 148;
-  const GAP = 12;
-  const LAST_COLUMN_EXTRA = 12;
+  const GAP = 0;
+  const LAST_COLUMN_EXTRA = 0;
   const FALLBACK_WIDTHS = {
     fundName: 140,
     relatedSector: 120,
-    latestNav: 64,
-    estimateNav: 64,
+    latestNav: 76,
+    estimateNav: 76,
     yesterdayChangePercent: 72,
     estimateChangePercent: 80,
     totalChangePercent: 80,
@@ -527,18 +549,30 @@ export default function MobileFundTable({
     const visibleNonNameIds = mobileColumnOrder.filter((id) => mobileColumnVisibility[id] !== false);
     const nonNameCount = visibleNonNameIds.length;
     if (tableContainerWidth > 0 && nonNameCount > 0) {
-      const gapTotal = nonNameCount >= 3 ? 3 * GAP : (nonNameCount) * GAP;
-      const remaining = tableContainerWidth - NAME_CELL_WIDTH - gapTotal - LAST_COLUMN_EXTRA;
-      const divisor = nonNameCount >= 3 ? 3 : nonNameCount;
-      const otherColumnWidth = Math.max(48, Math.floor(remaining / divisor));
+      const gapTotal = nonNameCount >= 3 ? 3 * GAP : nonNameCount * GAP;
+      const available = tableContainerWidth - NAME_CELL_WIDTH - gapTotal - LAST_COLUMN_EXTRA;
       const map = { fundName: NAME_CELL_WIDTH };
-      MOBILE_NON_FROZEN_COLUMN_IDS.forEach((id) => {
-        map[id] = otherColumnWidth;
+
+      visibleNonNameIds.forEach((id) => {
+        map[id] = FALLBACK_WIDTHS[id] ?? 64;
       });
+
+      const minRequired = visibleNonNameIds.reduce((sum, id) => sum + (map[id] ?? 0), 0);
+      if (available > minRequired) {
+        const extraPerColumn = Math.floor((available - minRequired) / nonNameCount);
+        visibleNonNameIds.forEach((id) => {
+          map[id] += extraPerColumn;
+        });
+      }
+
+      MOBILE_NON_FROZEN_COLUMN_IDS.forEach((id) => {
+        if (map[id] == null) map[id] = FALLBACK_WIDTHS[id] ?? 64;
+      });
+
       return map;
     }
     return { ...FALLBACK_WIDTHS };
-  }, [tableContainerWidth, mobileColumnOrder, mobileColumnVisibility]);
+  }, [tableContainerWidth, mobileColumnOrder, mobileColumnVisibility, FALLBACK_WIDTHS]);
 
   const handleResetMobileColumnOrder = () => {
     setMobileColumnOrder([...MOBILE_NON_FROZEN_COLUMN_IDS]);
@@ -751,7 +785,7 @@ export default function MobileFundTable({
             showFullFundName={showFullFundName}
             onOpenCardSheet={getFundCardProps ? (row) => setCardSheetRow(row) : undefined}
             isNameSortMode={isNameSortMode}
-            sortBy={sortBy}
+            sortBy={effectiveSortBy}
           />
         ),
         meta: { align: 'left', cellClassName: 'name-cell', width: columnWidthMap.fundName },
@@ -774,7 +808,7 @@ export default function MobileFundTable({
       },
       {
         accessorKey: 'latestNav',
-        header: '最新净值',
+        header: () => renderSortLabel('最新净值', 'latestNav', 'right'),
         cell: (info) => {
           const original = info.row.original || {};
           const date = original.latestNavDate ?? '-';
@@ -794,7 +828,7 @@ export default function MobileFundTable({
       },
       {
         accessorKey: 'estimateNav',
-        header: '估算净值',
+        header: () => renderSortLabel('估算净值', 'estimateNav', 'right'),
         cell: (info) => {
           const original = info.row.original || {};
           const date = original.estimateNavDate ?? '-';
@@ -894,7 +928,7 @@ export default function MobileFundTable({
       },
       {
         accessorKey: 'holdingDays',
-        header: '持有天数',
+        header: () => renderSortLabel('持有天数', 'holdingDays', 'right'),
         cell: (info) => {
           const original = info.row.original || {};
           const value = original.holdingDaysValue;
@@ -911,7 +945,7 @@ export default function MobileFundTable({
       },
       {
         accessorKey: 'todayProfit',
-        header: '当日收益',
+        header: () => renderSortLabel('当日收益', 'todayProfit', 'right'),
         cell: (info) => {
           const original = info.row.original || {};
           const value = original.todayProfitValue;
@@ -968,11 +1002,46 @@ export default function MobileFundTable({
         meta: { align: 'right', cellClassName: 'holding-cell', width: columnWidthMap.holdingProfit },
       },
     ],
-    [currentTab, favorites, refreshing, columnWidthMap, showFullFundName, getFundCardProps, isNameSortMode, sortBy, sortOrder, relatedSectorByCode, viewMode, onViewModeChange]
+    [currentTab, favorites, refreshing, columnWidthMap, showFullFundName, getFundCardProps, isNameSortMode, effectiveSortBy, relatedSectorByCode, viewMode, onViewModeChange, masked, renderSortLabel]
   );
 
+  const sortedTableData = useMemo(() => {
+    if (!Array.isArray(data) || data.length <= 1) return data;
+
+    if (!MOBILE_LOCAL_SORT_KEYS.has(effectiveSortBy)) return data;
+
+    const parseNumber = (value) => {
+      if (value == null || value === '') return Number.NaN;
+      if (typeof value === 'number') return Number.isFinite(value) ? value : Number.NaN;
+      const normalized = String(value).replace(/[¥,%\s,]/g, '').replace(/[^\d.+-]/g, '');
+      const parsed = Number.parseFloat(normalized);
+      return Number.isFinite(parsed) ? parsed : Number.NaN;
+    };
+
+    const getSortValue = (row) => {
+      if (effectiveSortBy === 'latestNav') return parseNumber(row?.latestNav);
+      if (effectiveSortBy === 'estimateNav') return parseNumber(row?.estimateNav);
+      if (effectiveSortBy === 'holdingDays') return parseNumber(row?.holdingDaysValue);
+      if (effectiveSortBy === 'todayProfit') return parseNumber(row?.todayProfitValue);
+      return Number.NaN;
+    };
+
+    return [...data].sort((a, b) => {
+      const valA = getSortValue(a);
+      const valB = getSortValue(b);
+      const hasA = Number.isFinite(valA);
+      const hasB = Number.isFinite(valB);
+
+      if (!hasA && !hasB) return 0;
+      if (!hasA) return 1;
+      if (!hasB) return -1;
+
+      return effectiveSortOrder === 'asc' ? valA - valB : valB - valA;
+    });
+  }, [data, effectiveSortBy, effectiveSortOrder]);
+
   const table = useReactTable({
-    data,
+    data: sortedTableData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     state: {
@@ -1013,6 +1082,7 @@ export default function MobileFundTable({
   }, 0);
 
   const mobileTableWidth = NAME_CELL_WIDTH + metricsWidth;
+  const tableWidthStyle = mobileTableWidth ? { width: `max(100%, ${mobileTableWidth}px)` } : { width: '100%' };
 
   const getAlignClass = (columnId) => {
     if (columnId === 'fundName') return '';
@@ -1028,7 +1098,7 @@ export default function MobileFundTable({
     return (
       <div
         className="mobile-fund-flex-row mobile-fund-flex-header-row"
-        style={mobileTableWidth ? { minWidth: mobileTableWidth } : undefined}
+        style={tableWidthStyle}
       >
         <div
           className={`mobile-fund-flex-cell mobile-fund-flex-header-cell mobile-fund-flex-name-cell ${isScrolled ? 'is-scrolled' : ''}`}
@@ -1076,7 +1146,7 @@ export default function MobileFundTable({
     if (onlyShowHeader) {
       return (
         <div className="mobile-fund-table mobile-fund-table-portal-header" ref={portalHeaderRef} style={{ top: stickyTop }}>
-          <div className="mobile-fund-table-scroll" style={mobileTableWidth ? { minWidth: mobileTableWidth } : undefined}>
+          <div className="mobile-fund-table-scroll" style={tableWidthStyle}>
             {renderTableHeader()}
           </div>
         </div>
@@ -1093,7 +1163,7 @@ export default function MobileFundTable({
       return (
         <div
           className="mobile-fund-flex-row"
-          style={{ minWidth: mobileTableWidth, background: rowBackground }}
+          style={{ ...tableWidthStyle, background: rowBackground }}
           onClick={() => setIsNameSortMode(false)}
           {...listeners}
         >
@@ -1142,7 +1212,7 @@ export default function MobileFundTable({
       <div className="mobile-fund-table" ref={tableContainerRef}>
         <div
           className="mobile-fund-table-scroll"
-          style={mobileTableWidth ? { minWidth: mobileTableWidth } : undefined}
+          style={tableWidthStyle}
         >
           {renderTableHeader()}
 
