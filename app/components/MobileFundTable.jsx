@@ -496,11 +496,11 @@ export default function MobileFundTable({
     latestNav: 76,
     estimateNav: 76,
     yesterdayChangePercent: 72,
-    estimateChangePercent: 80,
-    totalChangePercent: 80,
+    estimateChangePercent: 72,
+    totalChangePercent: 72,
     holdingDays: 64,
-    todayProfit: 80,
-    holdingProfit: 80,
+    todayProfit: 72,
+    holdingProfit: 72,
   };
 
   const relatedSectorEnabled = mobileColumnVisibility?.relatedSector !== false;
