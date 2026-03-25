@@ -55,6 +55,37 @@ function getChartThemeColors(theme) {
   return CHART_COLORS[theme] || CHART_COLORS.dark;
 }
 
+const TREND_SERIES_COLORS = {
+  dark: {
+    fundUp: '#fb7185',
+    fundUpFill: ['#f43f5e66', '#f43f5e12'],
+    fundDown: '#4ade80',
+    fundDownFill: ['#22c55e66', '#22c55e12'],
+    categoryAverage: '#94a3b8',
+    comparisonIndex: ['#38bdf8', '#60a5fa', '#818cf8', '#22d3ee'],
+  },
+  light: {
+    fundUp: '#dc2626',
+    fundUpFill: ['#ef444440', '#ef444408'],
+    fundDown: '#16a34a',
+    fundDownFill: ['#22c55e40', '#22c55e08'],
+    categoryAverage: '#64748b',
+    comparisonIndex: ['#0284c7', '#2563eb', '#4f46e5', '#0891b2'],
+  }
+};
+
+function getTrendSeriesColors(theme) {
+  return TREND_SERIES_COLORS[theme] || TREND_SERIES_COLORS.dark;
+}
+
+function resolveGrandSeriesColor(seriesName, theme, comparisonColorIndex) {
+  const palette = getTrendSeriesColors(theme);
+  if (typeof seriesName === 'string' && seriesName.includes('同类平均')) {
+    return palette.categoryAverage;
+  }
+  return palette.comparisonIndex[comparisonColorIndex % palette.comparisonIndex.length];
+}
+
 export default function FundTrendChart({ code, isExpanded, onToggleExpand, transactions = [], theme = 'dark', hideHeader = false }) {
   const [range, setRange] = useState('3m');
   const [data, setData] = useState([]);
@@ -71,6 +102,7 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
   });
 
   const chartColors = useMemo(() => getChartThemeColors(theme), [theme]);
+  const trendSeriesColors = useMemo(() => getTrendSeriesColors(theme), [theme]);
 
   useEffect(() => {
     // If collapsed, don't fetch data unless we have no data yet
@@ -120,11 +152,12 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
      return ((last - first) / first) * 100;
   }, [data]);
 
-  // Red for up, Green for down (CN market style)，随主题使用 CSS 变量
   const upColor = chartColors.danger;
   const downColor = chartColors.success;
-  const lineColor = change >= 0 ? upColor : downColor;
   const primaryColor = chartColors.primary;
+  const performanceColor = change >= 0 ? upColor : downColor;
+  const fundLineColor = change >= 0 ? trendSeriesColors.fundUp : trendSeriesColors.fundDown;
+  const fundFillColors = change >= 0 ? trendSeriesColors.fundUpFill : trendSeriesColors.fundDownFill;
 
   const percentageData = useMemo(() => {
     if (!data.length) return [];
@@ -157,23 +190,20 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
 
     // 将 Data_grandTotal 的多条曲线按日期对齐到主 labels 上
     const labels = data.map(d => d.date);
-    // 对比线颜色：避免与主线红/绿（upColor/downColor）重复
-    // 第三条对比线需要在亮/暗主题下都足够清晰，因此使用高对比的橙色强调
-    const grandAccent3 = theme === 'light' ? '#f97316' : '#fb923c';
-    const grandColors = [
-      primaryColor,
-      chartColors.muted,
-      grandAccent3,
-      chartColors.text,
-    ];
-    // 隐藏第一条对比线（数据与图示）；第二条用原第一条颜色，第三条用原第二条，顺延
+    // 对比线统一使用固定色板：同类平均延续当前灰色，指数类切到蓝色系
     const visibleGrandSeries = grandTotalSeries.filter((_, idx) => idx > 0);
+    let comparisonColorIndex = 0;
     const grandDatasets = visibleGrandSeries.map((series, displayIdx) => {
-      const color = grandColors[displayIdx % grandColors.length];
       const idx = displayIdx + 1; // 原始索引，用于 hiddenGrandSeries 的 key
       const key = `${series.name || 'series'}_${idx}`;
       const isHidden = hiddenGrandSeries.has(key);
       const pointsByDate = new Map(series.points.map(p => [p.date, p.value]));
+      const isCategoryAverage = typeof series.name === 'string' && series.name.includes('同类平均');
+      const color = resolveGrandSeriesColor(
+        series.name,
+        theme,
+        isCategoryAverage ? 0 : comparisonColorIndex++
+      );
 
       // 方案 2：将对比线同样归一到当前区间首日，展示为“相对本区间首日的累计收益率（百分点变化）”
       let baseValue = null;
@@ -199,9 +229,9 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
         data: seriesData,
         borderColor: color,
         backgroundColor: color,
-        borderWidth: 1.5,
+        borderWidth: isCategoryAverage ? 1.6 : 1.8,
         pointRadius: 0,
-        pointHoverRadius: 3,
+        pointHoverRadius: 4,
         fill: false,
         tension: 0.2,
         order: 2,
@@ -215,17 +245,17 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
           type: 'line',
           label: '本基金',
           data: percentageData,
-          borderColor: lineColor,
+          borderColor: fundLineColor,
           backgroundColor: (context) => {
             const ctx = context.chart.ctx;
             const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-            gradient.addColorStop(0, `${lineColor}33`); // 20% opacity
-            gradient.addColorStop(1, `${lineColor}00`); // 0% opacity
+            gradient.addColorStop(0, fundFillColors[0]);
+            gradient.addColorStop(1, fundFillColors[1]);
             return gradient;
           },
-          borderWidth: 2,
+          borderWidth: 2.1,
           pointRadius: 0,
-          pointHoverRadius: 4,
+          pointHoverRadius: 5,
           fill: true,
           tension: 0.2,
           order: 2
@@ -261,7 +291,7 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
         }
       ]
     };
-  }, [data, transactions, lineColor, primaryColor, upColor, chartColors, theme, hiddenGrandSeries, percentageData, range]);
+  }, [data, transactions, fundFillColors, fundLineColor, primaryColor, upColor, theme, hiddenGrandSeries, percentageData, range]);
 
   const options = useMemo(() => {
     const colors = getChartThemeColors(theme);
@@ -596,7 +626,7 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
                 width: 10,
                 height: 2,
                 borderRadius: 999,
-                backgroundColor: lineColor
+                backgroundColor: fundLineColor
               }}
             />
             <span className="muted">本基金</span>
@@ -620,14 +650,11 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
             .filter((_, idx) => idx > 0)
             .map((series, displayIdx) => {
               const idx = displayIdx + 1;
-              const legendAccent3 = theme === 'light' ? '#f97316' : '#fb923c';
-              const legendColors = [
-                primaryColor,
-                chartColors.muted,
-                legendAccent3,
-                chartColors.text,
-              ];
-              const color = legendColors[displayIdx % legendColors.length];
+              const visibleSeriesBefore = data.grandTotalSeries
+                .filter((_, innerIdx) => innerIdx > 0)
+                .slice(0, displayIdx)
+                .filter(item => !(typeof item?.name === 'string' && item.name.includes('同类平均'))).length;
+              const color = resolveGrandSeriesColor(series.name, theme, visibleSeriesBefore);
               const key = `${series.name || 'series'}_${idx}`;
             const isHidden = hiddenGrandSeries.has(key);
             let valueText = '--';
@@ -814,7 +841,7 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
             {data.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span className="muted">{ranges.find(r => r.value === range)?.label}涨跌幅</span>
-                <span style={{ color: lineColor, fontWeight: 600 }}>
+                <span style={{ color: performanceColor, fontWeight: 600 }}>
                   {change > 0 ? '+' : ''}{change.toFixed(2)}%
                 </span>
               </div>
@@ -827,7 +854,7 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
         <div className="row" style={{ marginBottom: 8, justifyContent: 'flex-end' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="muted">{ranges.find(r => r.value === range)?.label}涨跌幅</span>
-            <span style={{ color: lineColor, fontWeight: 600 }}>
+            <span style={{ color: performanceColor, fontWeight: 600 }}>
               {change > 0 ? '+' : ''}{change.toFixed(2)}%
             </span>
           </div>
