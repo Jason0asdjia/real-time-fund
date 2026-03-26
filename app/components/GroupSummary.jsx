@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, useMemo, useLayoutEffect } from 'react';
-import { PinIcon, PinOffIcon, EyeIcon, EyeOffIcon, SwitchIcon } from './Icons';
+import { PinIcon, PinOffIcon, EyeIcon, EyeOffIcon, SwitchIcon, CloseIcon, SettingsIcon } from './Icons';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import FitText from './FitText';
 
 function formatSummaryNumber(value, decimals = 2) {
@@ -45,6 +46,39 @@ function shouldCompactAssetNumber(value) {
   const integerDigits = Math.trunc(Math.abs(numericValue)).toString().length;
   const totalDigits = integerDigits + 2;
   return totalDigits > 9;
+}
+
+function shouldCompactMetricNumber(value, maxDigits = 7, decimals = 2) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return false;
+  const integerDigits = Math.trunc(Math.abs(numericValue)).toString().length;
+  const totalDigits = integerDigits + decimals;
+  return totalDigits > maxDigits;
+}
+
+function formatSignedCompactMoney(value, compacted) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return '0.00';
+  if (!compacted) return formatSummaryNumber(numericValue, 2);
+  return formatAssetCompactNumber(numericValue);
+}
+
+function formatSignedMoneyWithYuan(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return '¥0.00';
+  const absText = `¥${formatSummaryNumber(Math.abs(numericValue), 2)}`;
+  if (numericValue > 0) return `+${absText}`;
+  if (numericValue < 0) return `-${absText}`;
+  return absText;
+}
+
+function formatSignedPercent(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return '0.00%';
+  const absText = `${formatSummaryNumber(Math.abs(numericValue), 2)}%`;
+  if (numericValue > 0) return `+${absText}`;
+  if (numericValue < 0) return `-${absText}`;
+  return absText;
 }
 
 // 数字滚动组件（初始化时无动画，后续变更再动画）
@@ -153,6 +187,7 @@ export default function GroupSummary({
   const [assetSize, setAssetSize] = useState(24);
   const [metricSize, setMetricSize] = useState(18);
   const [winW, setWinW] = useState(0);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -237,6 +272,9 @@ export default function GroupSummary({
   useLayoutEffect(() => {
     const el = rowRef.current;
     if (!el) return;
+    const metricSignature = `${winW}-${summary.totalAsset}-${summary.totalProfitToday}-${summary.totalHoldingReturn}`;
+    if (!metricSignature) return;
+    if (assetSize <= 16 && metricSize <= 12) return;
     const height = el.clientHeight;
     const tooTall = height > 80;
     if (tooTall) {
@@ -248,8 +286,6 @@ export default function GroupSummary({
     summary.totalAsset,
     summary.totalProfitToday,
     summary.totalHoldingReturn,
-    summary.returnRate,
-    showPercent,
     assetSize,
     metricSize,
   ]);
@@ -285,9 +321,19 @@ export default function GroupSummary({
       ro.disconnect();
       onHeightChange(0);
     };
-  }, [mobileInline, onHeightChange, summary.totalAsset, summary.totalProfitToday, summary.totalHoldingReturn, showPercent, isMasked]);
+  }, [mobileInline, onHeightChange]);
 
   const isAssetCompacted = useMemo(() => shouldCompactAssetNumber(summary.totalAsset), [summary.totalAsset]);
+  const isTodayProfitCompacted = useMemo(
+    () => shouldCompactMetricNumber(summary.totalProfitToday, 7, 2),
+    [summary.totalProfitToday]
+  );
+  const isHoldingProfitCompacted = useMemo(
+    () => shouldCompactMetricNumber(summary.totalHoldingReturn, 7, 2),
+    [summary.totalHoldingReturn]
+  );
+  const hasAnySummaryCompacted = isAssetCompacted || isTodayProfitCompacted || isHoldingProfitCompacted;
+  const canOpenDetailModal = hasAnySummaryCompacted && !isMasked;
 
   const compactAssetText = useMemo(() => {
     if (!isAssetCompacted) {
@@ -295,6 +341,22 @@ export default function GroupSummary({
     }
     return `¥${formatAssetCompactNumber(summary.totalAsset)}`;
   }, [summary.totalAsset, isAssetCompacted]);
+
+  const compactTodayProfitText = useMemo(
+    () => formatSignedCompactMoney(summary.totalProfitToday, isTodayProfitCompacted),
+    [summary.totalProfitToday, isTodayProfitCompacted]
+  );
+
+  const compactHoldingProfitText = useMemo(
+    () => formatSignedCompactMoney(summary.totalHoldingReturn, isHoldingProfitCompacted),
+    [summary.totalHoldingReturn, isHoldingProfitCompacted]
+  );
+
+  const groupAssetLabel = useMemo(() => {
+    const normalizedName = String(groupName || '').trim();
+    if (!normalizedName) return '分组资产';
+    return normalizedName.endsWith('资产') ? normalizedName : `${normalizedName}资产`;
+  }, [groupName]);
 
   if (!summary.hasHolding) return null;
 
@@ -310,6 +372,7 @@ export default function GroupSummary({
             <div className="group-summary-mobile-title">
               <span className="muted">{groupName}</span>
               <button
+                type="button"
                 className="fav-button"
                 onClick={() => {
                   if (onToggleMasked) {
@@ -331,13 +394,34 @@ export default function GroupSummary({
           </div>
 
           <div className="group-summary-mobile-grid">
-            <div className="group-summary-mobile-metric group-summary-mobile-metric-main">
-              <div className="group-summary-mobile-label">{mobileInline ? '全部资产' : '总资产'}</div>
-              <div className="group-summary-mobile-value group-summary-mobile-asset">
+            <div
+              className="group-summary-mobile-metric group-summary-mobile-metric-main"
+              style={{ alignItems: 'flex-start', textAlign: 'left' }}
+            >
+              <div className="group-summary-mobile-label" style={{ justifyContent: 'flex-start' }}>全部资产</div>
+              <div className="group-summary-mobile-value group-summary-mobile-asset" style={{ justifyContent: 'flex-start' }}>
                 {isMasked ? (
                   <span className="mask-text">******</span>
                 ) : (
-                  <span className="group-summary-mobile-asset-static">{compactAssetText}</span>
+                  <button
+                    type="button"
+                    className="group-summary-mobile-asset-static"
+                    onClick={() => canOpenDetailModal && setShowDetailModal(true)}
+                    title={canOpenDetailModal ? '点击查看完整金额' : undefined}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'inherit',
+                      cursor: canOpenDetailModal ? 'pointer' : 'default',
+                      padding: 0,
+                      font: 'inherit',
+                      display: 'block',
+                      width: '100%',
+                      textAlign: 'left',
+                    }}
+                  >
+                    {compactAssetText}
+                  </button>
                 )}
               </div>
             </div>
@@ -366,19 +450,36 @@ export default function GroupSummary({
                 {isMasked ? (
                   <span className="mask-text">******</span>
                 ) : summary.hasAnyTodayData ? (
-                  <AutoFitCountUp
-                    value={showTodayPercent ? summary.todayReturnRate : summary.totalProfitToday}
-                    prefix={
-                      summary.totalProfitToday > 0
-                        ? '+'
-                        : summary.totalProfitToday < 0
-                          ? '-'
-                          : ''
-                    }
-                    suffix={showTodayPercent ? '%' : ''}
-                    maxFontSize={mobileInline ? Math.min(metricSize, 14) : metricSize}
-                    minFontSize={mobileInline ? 4 : 6}
-                  />
+                  showTodayPercent ? (
+                    <AutoFitCountUp
+                      value={Math.abs(summary.todayReturnRate)}
+                      prefix={
+                        summary.totalProfitToday > 0
+                          ? '+'
+                          : summary.totalProfitToday < 0
+                            ? '-'
+                            : ''
+                      }
+                      suffix="%"
+                      maxFontSize={mobileInline ? Math.min(metricSize, 14) : metricSize}
+                      minFontSize={mobileInline ? 4 : 6}
+                    />
+                  ) : isTodayProfitCompacted ? (
+                    <span>{compactTodayProfitText}</span>
+                  ) : (
+                    <AutoFitCountUp
+                      value={Math.abs(summary.totalProfitToday)}
+                      prefix={
+                        summary.totalProfitToday > 0
+                          ? '+'
+                          : summary.totalProfitToday < 0
+                            ? '-'
+                            : ''
+                      }
+                      maxFontSize={mobileInline ? Math.min(metricSize, 14) : metricSize}
+                      minFontSize={mobileInline ? 4 : 6}
+                    />
+                  )
                 ) : (
                   '--'
                 )}
@@ -407,24 +508,220 @@ export default function GroupSummary({
                 {isMasked ? (
                   <span className="mask-text">******</span>
                 ) : (
-                  <AutoFitCountUp
-                    value={showPercent ? summary.returnRate : summary.totalHoldingReturn}
-                    prefix={
-                      summary.totalHoldingReturn > 0
-                        ? '+'
-                        : summary.totalHoldingReturn < 0
-                          ? '-'
-                          : ''
-                    }
-                    suffix={showPercent ? '%' : ''}
-                    maxFontSize={mobileInline ? Math.min(metricSize, 14) : metricSize}
-                    minFontSize={mobileInline ? 4 : 6}
-                  />
+                  showPercent ? (
+                    <AutoFitCountUp
+                      value={Math.abs(summary.returnRate)}
+                      prefix={
+                        summary.totalHoldingReturn > 0
+                          ? '+'
+                          : summary.totalHoldingReturn < 0
+                            ? '-'
+                            : ''
+                      }
+                      suffix="%"
+                      maxFontSize={mobileInline ? Math.min(metricSize, 14) : metricSize}
+                      minFontSize={mobileInline ? 4 : 6}
+                    />
+                  ) : isHoldingProfitCompacted ? (
+                    <span>{compactHoldingProfitText}</span>
+                  ) : (
+                    <AutoFitCountUp
+                      value={Math.abs(summary.totalHoldingReturn)}
+                      prefix={
+                        summary.totalHoldingReturn > 0
+                          ? '+'
+                          : summary.totalHoldingReturn < 0
+                            ? '-'
+                            : ''
+                      }
+                      maxFontSize={mobileInline ? Math.min(metricSize, 14) : metricSize}
+                      minFontSize={mobileInline ? 4 : 6}
+                    />
+                  )
                 )}
               </div>
             </button>
           </div>
         </div>
+        {showDetailModal && (
+          <Dialog open onOpenChange={(open) => !open && setShowDetailModal(false)}>
+            <DialogContent
+              showCloseButton={false}
+              className="glass card modal !z-[12010]"
+              overlayClassName="!z-[12000]"
+              style={{ maxWidth: '320px' }}
+            >
+              <DialogTitle className="sr-only">全部资产</DialogTitle>
+              <div className="title" style={{ marginBottom: 20, justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <SettingsIcon width="20" height="20" />
+                  <span>全部资产</span>
+                </div>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => setShowDetailModal(false)}
+                  style={{ border: 'none', background: 'transparent' }}
+                >
+                  <CloseIcon width="20" height="20" />
+                </button>
+              </div>
+
+              <div className="grid" style={{ gap: 12 }}>
+                <div
+                  className="button col-12"
+                  style={{
+                    cursor: 'default',
+                    background: 'rgba(255,255,255,0.05)',
+                    color: 'var(--text)',
+                    justifyContent: 'flex-start',
+                    alignItems: 'stretch',
+                    flexDirection: 'column',
+                    gap: 10,
+                    padding: '14px 16px',
+                    height: 'auto',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span className="muted" style={{ fontSize: 13, textAlign: 'left' }}>{groupAssetLabel}</span>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      width: '100%',
+                      justifyContent: 'flex-start',
+                      textAlign: 'left',
+                      border: '1px solid var(--line)',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-mono)',
+                      background: 'rgba(255,255,255,0.04)',
+                      overflowWrap: 'anywhere',
+                      wordBreak: 'break-word',
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    ¥{formatSummaryNumber(summary.totalAsset, 2)}
+                  </span>
+                </div>
+                <div
+                  className="button col-12"
+                  style={{
+                    cursor: 'default',
+                    background: 'rgba(255,255,255,0.05)',
+                    color: 'var(--text)',
+                    justifyContent: 'flex-start',
+                    alignItems: 'stretch',
+                    flexDirection: 'column',
+                    gap: 10,
+                    padding: '14px 16px',
+                    height: 'auto',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span className="muted" style={{ fontSize: 13, textAlign: 'left' }}>当日收益</span>
+                    <span
+                      className={
+                        summary.todayReturnRate > 0
+                          ? 'up'
+                          : summary.todayReturnRate < 0
+                            ? 'down'
+                            : 'muted'
+                      }
+                      style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)' }}
+                    >
+                      {formatSignedPercent(summary.todayReturnRate)}
+                    </span>
+                  </div>
+                  <span
+                    className={
+                      summary.totalProfitToday > 0
+                        ? 'up'
+                        : summary.totalProfitToday < 0
+                          ? 'down'
+                          : ''
+                    }
+                    style={{
+                      display: 'inline-flex',
+                      width: '100%',
+                      justifyContent: 'flex-start',
+                      textAlign: 'left',
+                      border: '1px solid var(--line)',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-mono)',
+                      background: 'rgba(255,255,255,0.04)',
+                      overflowWrap: 'anywhere',
+                      wordBreak: 'break-word',
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    {formatSignedMoneyWithYuan(summary.totalProfitToday)}
+                  </span>
+                </div>
+                <div
+                  className="button col-12"
+                  style={{
+                    cursor: 'default',
+                    background: 'rgba(255,255,255,0.05)',
+                    color: 'var(--text)',
+                    justifyContent: 'flex-start',
+                    alignItems: 'stretch',
+                    flexDirection: 'column',
+                    gap: 10,
+                    padding: '14px 16px',
+                    height: 'auto',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span className="muted" style={{ fontSize: 13, textAlign: 'left' }}>持有收益</span>
+                    <span
+                      className={
+                        summary.returnRate > 0
+                          ? 'up'
+                          : summary.returnRate < 0
+                            ? 'down'
+                            : 'muted'
+                      }
+                      style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)' }}
+                    >
+                      {formatSignedPercent(summary.returnRate)}
+                    </span>
+                  </div>
+                  <span
+                    className={
+                      summary.totalHoldingReturn > 0
+                        ? 'up'
+                        : summary.totalHoldingReturn < 0
+                          ? 'down'
+                          : ''
+                    }
+                    style={{
+                      display: 'inline-flex',
+                      width: '100%',
+                      justifyContent: 'flex-start',
+                      textAlign: 'left',
+                      border: '1px solid var(--line)',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-mono)',
+                      background: 'rgba(255,255,255,0.04)',
+                      overflowWrap: 'anywhere',
+                      wordBreak: 'break-word',
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    {formatSignedMoneyWithYuan(summary.totalHoldingReturn)}
+                  </span>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     );
   }
@@ -443,7 +740,8 @@ export default function GroupSummary({
           position: 'relative',
         }}
       >
-        <span
+        <button
+          type="button"
           className="sticky-toggle-btn"
           onClick={() => {
             onToggleSticky?.(!isSticky);
@@ -458,6 +756,8 @@ export default function GroupSummary({
             opacity: 0.6,
             zIndex: 10,
             color: 'var(--muted)',
+            border: 'none',
+            background: 'transparent',
           }}
         >
           {isSticky ? (
@@ -465,7 +765,7 @@ export default function GroupSummary({
           ) : (
             <PinOffIcon width="14" height="14" />
           )}
-        </span>
+        </button>
         <div
           ref={rowRef}
           className="row"
@@ -479,6 +779,7 @@ export default function GroupSummary({
                 {groupName}
               </div>
               <button
+                type="button"
                 className="fav-button"
                 onClick={() => {
                   if (onToggleMasked) {
@@ -538,7 +839,8 @@ export default function GroupSummary({
                 当日收益{showTodayPercent ? '(%)' : ''}{' '}
                 <SwitchIcon style={{ opacity: 0.4 }} />
               </div>
-              <div
+              <button
+                type="button"
                 className={
                   summary.hasAnyTodayData
                     ? summary.totalProfitToday > 0
@@ -553,6 +855,10 @@ export default function GroupSummary({
                   fontWeight: 700,
                   fontFamily: 'var(--font-mono)',
                   cursor: summary.hasAnyTodayData ? 'pointer' : 'default',
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  textAlign: 'right',
                 }}
                 onClick={() => summary.hasAnyTodayData && setShowTodayPercent(!showTodayPercent)}
                 title="点击切换金额/百分比"
@@ -586,7 +892,7 @@ export default function GroupSummary({
                 ) : (
                   <span style={{ fontSize: metricSize }}>--</span>
                 )}
-              </div>
+              </button>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div
@@ -603,7 +909,8 @@ export default function GroupSummary({
                 持有收益{showPercent ? '(%)' : ''}{' '}
                 <SwitchIcon style={{ opacity: 0.4 }} />
               </div>
-              <div
+              <button
+                type="button"
                 className={
                   summary.totalHoldingReturn > 0
                     ? 'up'
@@ -616,6 +923,10 @@ export default function GroupSummary({
                   fontWeight: 700,
                   fontFamily: 'var(--font-mono)',
                   cursor: 'pointer',
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  textAlign: 'right',
                 }}
                 onClick={() => setShowPercent(!showPercent)}
                 title="点击切换金额/百分比"
@@ -647,7 +958,7 @@ export default function GroupSummary({
                     )}
                   </>
                 )}
-              </div>
+              </button>
             </div>
           </div>
         </div>
