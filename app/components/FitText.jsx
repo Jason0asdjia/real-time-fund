@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 
 /**
  * 根据容器宽度动态缩小字体，使内容不溢出。
@@ -13,6 +13,7 @@ import { useLayoutEffect, useRef } from 'react';
  * @param {string} [props.className] - 外层容器 className
  * @param {Object} [props.style] - 外层容器 style（宽度由父级决定，建议父级有明确宽度）
  * @param {string} [props.as='span'] - 外层容器标签 'span' | 'div'
+ * @param {number} [props.fitPadding=6] - 缩放时预留的安全宽度（px）
  */
 export default function FitText({
   children,
@@ -21,35 +22,47 @@ export default function FitText({
   className,
   style = {},
   as: Tag = 'span',
+  fitPadding = 6,
 }) {
   const containerRef = useRef(null);
   const contentRef = useRef(null);
 
-  const adjust = () => {
+  const adjust = useCallback(() => {
     const container = containerRef.current;
     const content = contentRef.current;
     if (!container || !content) return;
 
     const containerWidth = container.clientWidth;
     if (containerWidth <= 0) return;
-    const safeWidth = Math.max(containerWidth - 6, 0);
+    const safeWidth = Math.max(containerWidth - fitPadding, 0);
 
-    // 先恢复到最大字号再测量，确保在「未缩放」状态下取到真实内容宽度
-    content.style.fontSize = `${maxFontSize}px`;
+    const measureNode = content.cloneNode(true);
+    measureNode.style.position = 'absolute';
+    measureNode.style.visibility = 'hidden';
+    measureNode.style.pointerEvents = 'none';
+    measureNode.style.left = '-99999px';
+    measureNode.style.top = '0';
+    measureNode.style.width = 'max-content';
+    measureNode.style.maxWidth = 'none';
+    measureNode.style.paddingRight = '0';
+    measureNode.style.fontSize = `${maxFontSize}px`;
+    document.body.appendChild(measureNode);
+    const contentWidth = measureNode.getBoundingClientRect().width;
+    document.body.removeChild(measureNode);
+    if (contentWidth <= 0) return;
 
-    const run = () => {
-      const contentWidth = content.scrollWidth;
-      if (contentWidth <= 0) return;
-      let size = maxFontSize;
-      if (contentWidth > safeWidth) {
-        size = (safeWidth / contentWidth) * maxFontSize;
-        size = Math.max(minFontSize, Math.min(maxFontSize, size));
-      }
-      content.style.fontSize = `${size}px`;
-    };
+    let size = maxFontSize;
+    if (contentWidth > safeWidth) {
+      size = (safeWidth / contentWidth) * maxFontSize;
+      size = Math.max(minFontSize, Math.min(maxFontSize, size));
+    }
 
-    requestAnimationFrame(run);
-  };
+    const normalizedSize = Math.round(size * 100) / 100;
+    const currentSize = Number.parseFloat(content.style.fontSize);
+    if (Number.isFinite(currentSize) && Math.abs(currentSize - normalizedSize) < 0.01) return;
+
+    content.style.fontSize = `${normalizedSize}px`;
+  }, [fitPadding, maxFontSize, minFontSize]);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -59,7 +72,7 @@ export default function FitText({
     const ro = new ResizeObserver(adjust);
     ro.observe(container);
     return () => ro.disconnect();
-  }, [children, maxFontSize, minFontSize]);
+  }, [adjust]);
 
   return (
     <Tag
@@ -81,8 +94,7 @@ export default function FitText({
           whiteSpace: 'nowrap',
           fontWeight: 'inherit',
           fontSize: `${maxFontSize}px`,
-          maxWidth: 'none',
-          width: 'max-content',
+          maxWidth: '100%',
         }}
       >
         {children}

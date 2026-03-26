@@ -52,6 +52,7 @@ const MOBILE_COLUMN_HEADERS = {
   holdingProfit: '持有收益',
 };
 const MOBILE_LOCAL_SORT_KEYS = new Set(['latestNav', 'estimateNav', 'holdingDays', 'todayProfit']);
+const MOUSE_DRAG_THRESHOLD = 8;
 
 const RowSortableContext = createContext(null);
 
@@ -139,6 +140,16 @@ export default function MobileFundTable({
 
   const [activeId, setActiveId] = useState(null);
   const ignoreNextDrawerCloseRef = useRef(false);
+  const [isMouseDraggingScroll, setIsMouseDraggingScroll] = useState(false);
+  const mouseDragStateRef = useRef({
+    pressed: false,
+    dragging: false,
+    startX: 0,
+    startY: 0,
+    startScrollLeft: 0,
+    startScrollTop: 0,
+  });
+  const suppressMouseClickRef = useRef(false);
 
   const onToggleFavoriteRef = useRef(onToggleFavorite);
   const onRemoveFromGroupRef = useRef(onRemoveFromGroup);
@@ -422,6 +433,45 @@ export default function MobileFundTable({
   }, [scrollSyncRef]);
 
   useEffect(() => {
+    const handleMouseMove = (e) => {
+      const tableEl = tableContainerRef.current;
+      const dragState = mouseDragStateRef.current;
+      if (!tableEl || !dragState.pressed) return;
+
+      const deltaX = e.clientX - dragState.startX;
+      const deltaY = e.clientY - dragState.startY;
+      if (!dragState.dragging) {
+        const movedDistance = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+        if (movedDistance < MOUSE_DRAG_THRESHOLD) return;
+        dragState.dragging = true;
+        suppressMouseClickRef.current = true;
+        setIsMouseDraggingScroll(true);
+      }
+
+      e.preventDefault();
+
+      tableEl.scrollLeft = dragState.startScrollLeft - deltaX;
+      window.scrollTo({
+        top: Math.max(0, dragState.startScrollTop - deltaY),
+        behavior: 'auto',
+      });
+    };
+
+    const handleMouseUp = () => {
+      mouseDragStateRef.current.pressed = false;
+      mouseDragStateRef.current.dragging = false;
+      setIsMouseDraggingScroll(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const updatePortalHeaderVisibility = () => {
@@ -467,8 +517,8 @@ export default function MobileFundTable({
   const FALLBACK_WIDTHS = {
     fundName: 140,
     relatedSector: 120,
-    latestNav: 76,
-    estimateNav: 76,
+    latestNav: 84,
+    estimateNav: 84,
     yesterdayChangePercent: 72,
     estimateChangePercent: 72,
     totalChangePercent: 72,
@@ -790,12 +840,11 @@ export default function MobileFundTable({
           const original = info.row.original || {};
           const date = original.latestNavDate ?? '-';
           const displayDate = typeof date === 'string' && date.length > 5 ? date.slice(5) : date;
+          const value = info.getValue() ?? '—';
           return (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0 }}>
-              <span style={{ display: 'block', width: '100%', fontWeight: 600 }}>
-                <FitText maxFontSize={12} minFontSize={9}>
-                  {info.getValue() ?? '—'}
-                </FitText>
+              <span style={{ display: 'block', width: '100%', fontWeight: 600, fontSize: '12px', lineHeight: 1.2, whiteSpace: 'nowrap', textAlign: 'right' }}>
+                {value}
               </span>
               <span className="muted" style={{ fontSize: '9px' }}>{displayDate}</span>
             </div>
@@ -815,10 +864,8 @@ export default function MobileFundTable({
 
           return (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0 }}>
-              <span style={{ display: 'block', width: '100%', fontWeight: 600 }}>
-                <FitText maxFontSize={12} minFontSize={9}>
-                  {estimateNav ?? '—'}
-                </FitText>
+              <span style={{ display: 'block', width: '100%', fontWeight: 600, fontSize: '12px', lineHeight: 1.2, whiteSpace: 'nowrap', textAlign: 'right' }}>
+                {estimateNav ?? '—'}
               </span>
               {hasEstimateNav && displayDate && displayDate !== '-' ? (
                 <span className="muted" style={{ fontSize: '9px' }}>{displayDate}</span>
@@ -1186,7 +1233,40 @@ export default function MobileFundTable({
     };
 
     return (
-      <div className="mobile-fund-table" ref={tableContainerRef}>
+      <div
+        className={`mobile-fund-table ${isMouseDraggingScroll ? 'mouse-dragging' : ''}`}
+        ref={tableContainerRef}
+        onClickCapture={(e) => {
+          if (!suppressMouseClickRef.current) return;
+          suppressMouseClickRef.current = false;
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onMouseDown={(e) => {
+          if (onlyShowHeader || isNameSortMode) return;
+          if (e.button !== 0) return;
+          if (e.target.closest('button, a, input, textarea, select, [role="button"]')) return;
+          const tableEl = tableContainerRef.current;
+          if (!tableEl) return;
+          mouseDragStateRef.current = {
+            pressed: true,
+            dragging: false,
+            startX: e.clientX,
+            startY: e.clientY,
+            startScrollLeft: tableEl.scrollLeft,
+            startScrollTop: window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0,
+          };
+        }}
+        onMouseLeave={() => {
+          if (!mouseDragStateRef.current.pressed) return;
+        }}
+        onMouseUp={() => {
+          if (!mouseDragStateRef.current.pressed) return;
+          mouseDragStateRef.current.pressed = false;
+          mouseDragStateRef.current.dragging = false;
+          setIsMouseDraggingScroll(false);
+        }}
+      >
         <div
           className="mobile-fund-table-scroll"
           style={tableWidthStyle}

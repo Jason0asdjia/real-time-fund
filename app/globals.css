@@ -1823,13 +1823,11 @@ input[type="number"] {
   .mobile-fund-table .is-scrolled,
   .mobile-fund-table .is-scrolled {
     box-shadow: 4px 0 10px -2px rgba(0, 0, 0, 0.12);
-    border-right: 1px solid rgba(0, 0, 0, 0.08);
   }
 
   [data-theme="light"] .mobile-fund-table .is-scrolled,
   [data-theme="light"] .mobile-fund-table .is-scrolled {
     box-shadow: 4px 0 10px -2px rgba(0, 0, 0, 0.08);
-    border-right-color: rgba(0, 0, 0, 0.06);
   }
 
   .mobile-fund-table .mobile-fund-flex-header-cell {
@@ -1907,7 +1905,7 @@ input[type="number"] {
   .mobile-fund-table .mobile-fund-flex-row .mobile-fund-flex-name-cell .title-text {
     flex: 1 1 auto;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible;
   }
 
   /* 移动端表格表体基金名称字体缩小 */
@@ -2282,6 +2280,7 @@ input[type="number"] {
 
   .group-summary-mobile-metric-main {
     text-align: left;
+    overflow: visible;
   }
 
   .group-summary-mobile-label {
@@ -2317,6 +2316,13 @@ input[type="number"] {
 
   .group-summary-mobile-asset {
     font-size: 24px;
+  }
+
+  .group-summary-mobile-asset-static {
+    display: inline-block;
+    width: 100%;
+    min-width: 0;
+    white-space: nowrap;
   }
 
   .group-summary-mobile-strip-inline .group-summary-mobile-head {

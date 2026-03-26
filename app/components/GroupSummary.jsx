@@ -4,6 +4,49 @@ import { useEffect, useRef, useState, useMemo, useLayoutEffect } from 'react';
 import { PinIcon, PinOffIcon, EyeIcon, EyeOffIcon, SwitchIcon } from './Icons';
 import FitText from './FitText';
 
+function formatSummaryNumber(value, decimals = 2) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return '0.00';
+  return Math.abs(numericValue).toLocaleString('zh-CN', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+function trimTrailingZeros(value) {
+  return value.replace(/\.0+$|(?<=\.\d*[1-9])0+$/u, '');
+}
+
+function formatAssetCompactNumber(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return '0';
+
+  const sign = numericValue < 0 ? '-' : '';
+  const absValue = Math.abs(numericValue);
+
+  if (absValue >= 100000000) {
+    return `${sign}${trimTrailingZeros((absValue / 100000000).toFixed(2))}亿`;
+  }
+
+  if (absValue >= 10000) {
+    return `${sign}${trimTrailingZeros((absValue / 10000).toFixed(2))}万`;
+  }
+
+  if (absValue >= 1000) {
+    return `${sign}${trimTrailingZeros((absValue / 1000).toFixed(2))}千`;
+  }
+
+  return `${sign}${formatSummaryNumber(absValue, 2)}`;
+}
+
+function shouldCompactAssetNumber(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return false;
+  const integerDigits = Math.trunc(Math.abs(numericValue)).toString().length;
+  const totalDigits = integerDigits + 2;
+  return totalDigits > 9;
+}
+
 // 数字滚动组件（初始化时无动画，后续变更再动画）
 function CountUp({ value, prefix = '', suffix = '', decimals = 2, className = '', style = {} }) {
   const [displayValue, setDisplayValue] = useState(value);
@@ -57,19 +100,20 @@ function CountUp({ value, prefix = '', suffix = '', decimals = 2, className = ''
   return (
     <span className={className} style={style}>
       {prefix}
-      {Math.abs(displayValue).toFixed(decimals)}
+      {formatSummaryNumber(displayValue, decimals)}
       {suffix}
     </span>
   );
 }
 
-function AutoFitCountUp({ value, prefix = '', suffix = '', decimals = 2, maxFontSize, minFontSize, className = '', style = {} }) {
+function AutoFitCountUp({ value, prefix = '', suffix = '', decimals = 2, maxFontSize, minFontSize, className = '', style = {}, fitPadding }) {
   return (
     <FitText
       as="div"
       className={className}
       maxFontSize={maxFontSize}
       minFontSize={minFontSize}
+      fitPadding={fitPadding}
       style={{
         lineHeight: 1.1,
         whiteSpace: 'nowrap',
@@ -79,7 +123,7 @@ function AutoFitCountUp({ value, prefix = '', suffix = '', decimals = 2, maxFont
       }}
     >
       {prefix}
-      {Math.abs(value).toFixed(decimals)}
+      {formatSummaryNumber(value, decimals)}
       {suffix}
     </FitText>
   );
@@ -243,6 +287,15 @@ export default function GroupSummary({
     };
   }, [mobileInline, onHeightChange, summary.totalAsset, summary.totalProfitToday, summary.totalHoldingReturn, showPercent, isMasked]);
 
+  const isAssetCompacted = useMemo(() => shouldCompactAssetNumber(summary.totalAsset), [summary.totalAsset]);
+
+  const compactAssetText = useMemo(() => {
+    if (!isAssetCompacted) {
+      return `¥${formatSummaryNumber(summary.totalAsset, 2)}`;
+    }
+    return `¥${formatAssetCompactNumber(summary.totalAsset)}`;
+  }, [summary.totalAsset, isAssetCompacted]);
+
   if (!summary.hasHolding) return null;
 
   if (isMobile) {
@@ -284,12 +337,7 @@ export default function GroupSummary({
                 {isMasked ? (
                   <span className="mask-text">******</span>
                 ) : (
-                  <AutoFitCountUp
-                    value={summary.totalAsset}
-                    prefix="¥"
-                    maxFontSize={mobileInline ? Math.min(assetSize, 18) : assetSize}
-                    minFontSize={mobileInline ? 3 : 6}
-                  />
+                  <span className="group-summary-mobile-asset-static">{compactAssetText}</span>
                 )}
               </div>
             </div>
