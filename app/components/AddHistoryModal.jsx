@@ -107,8 +107,8 @@ export default function AddHistoryModal({ fund, onClose, onConfirm }) {
     <Dialog open onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="glass card modal !z-[12010]"
-        overlayClassName="!z-[12000]"
+        className="glass card modal !z-[12030]"
+        overlayClassName="modal-overlay !z-[12020]"
         style={{ maxWidth: '420px', width: '90vw' }}
       >
         <DialogTitle className="sr-only">添加历史记录</DialogTitle>

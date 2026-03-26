@@ -25,9 +25,8 @@ export default function PendingTradesModal({
       <DialogContent
         showCloseButton={false}
         className="glass card modal trade-modal"
-        overlayClassName="modal-overlay"
-        overlayStyle={{ zIndex: 998 }}
-        style={{ maxWidth: '420px', zIndex: 999, width: '90vw' }}
+        overlayClassName="modal-overlay !z-[12020]"
+        style={{ maxWidth: '420px', zIndex: 12030, width: '90vw' }}
       >
         <DialogTitle className="sr-only">待交易队列</DialogTitle>
 
@@ -91,4 +90,3 @@ export default function PendingTradesModal({
     </Dialog>
   );
 }
-

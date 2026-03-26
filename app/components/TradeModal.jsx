@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -105,6 +105,7 @@ export default function TradeModal({ type, fund, holding, onClose, onConfirm, pe
   const availableShare = holding ? Math.max(0, holding.share - pendingSellShare) : 0;
 
   const [showPendingList, setShowPendingList] = useState(false);
+  const suppressParentCloseRef = useRef(false);
 
   useEffect(() => {
     if (showPendingList && currentPendingTrades.length === 0) {
@@ -208,6 +209,7 @@ export default function TradeModal({ type, fund, holding, onClose, onConfirm, pe
 
   const handleOpenChange = (open) => {
     if (!open) {
+      if (showPendingList || suppressParentCloseRef.current) return;
       onClose?.();
     }
   };
@@ -218,7 +220,12 @@ export default function TradeModal({ type, fund, holding, onClose, onConfirm, pe
         showCloseButton={false}
         className="glass card modal trade-modal !z-[12010]"
         overlayClassName="!z-[12000]"
-        style={{ maxWidth: '420px', width: '90vw' }}
+        style={{
+          maxWidth: '420px',
+          width: '90vw',
+          visibility: showPendingList ? 'hidden' : 'visible',
+          pointerEvents: showPendingList ? 'none' : 'auto',
+        }}
       >
         <DialogTitle className="sr-only">{isBuy ? '加仓' : '减仓'}</DialogTitle>
         <div className="title" style={{ marginBottom: 20, justifyContent: 'space-between' }}>
@@ -670,7 +677,13 @@ export default function TradeModal({ type, fund, holding, onClose, onConfirm, pe
       <PendingTradesModal
         open={showPendingList}
         trades={currentPendingTrades}
-        onClose={() => setShowPendingList(false)}
+        onClose={() => {
+          suppressParentCloseRef.current = true;
+          setShowPendingList(false);
+          requestAnimationFrame(() => {
+            suppressParentCloseRef.current = false;
+          });
+        }}
         onRevoke={(trade) => setRevokeTrade(trade)}
       />
     </Dialog>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { CloseIcon } from './Icons';
 import ConfirmModal from './ConfirmModal';
@@ -19,8 +19,10 @@ export default function TransactionHistoryModal({
   onDeleteTransaction,
   onDeletePending,
   onAddHistory,
+  childModalOpen = false,
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { type: 'pending' | 'history', item }
+  const suppressParentCloseRef = useRef(false);
 
   // Combine and sort logic if needed, but requirements say "sorted by transaction time".
   // Pending transactions are usually "future" or "processing", so they go on top.
@@ -53,9 +55,19 @@ export default function TransactionHistoryModal({
 
   const handleOpenChange = (open) => {
     if (!open) {
+      if (childModalOpen || suppressParentCloseRef.current) return;
       onClose?.();
     }
   };
+
+  useEffect(() => {
+    if (childModalOpen) return;
+    if (!suppressParentCloseRef.current) return;
+    const rafId = requestAnimationFrame(() => {
+      suppressParentCloseRef.current = false;
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [childModalOpen]);
 
   return (
     <Dialog open onOpenChange={handleOpenChange}>
@@ -69,6 +81,8 @@ export default function TransactionHistoryModal({
           maxHeight: '80vh',
           display: 'flex',
           flexDirection: 'column',
+          visibility: childModalOpen ? 'hidden' : 'visible',
+          pointerEvents: childModalOpen ? 'none' : 'auto',
         }}
       >
         <DialogTitle className="sr-only">交易记录</DialogTitle>
@@ -94,7 +108,10 @@ export default function TransactionHistoryModal({
           </div>
           <button
             className="button primary"
-            onClick={onAddHistory}
+            onClick={() => {
+              suppressParentCloseRef.current = true;
+              onAddHistory?.();
+            }}
             style={{ fontSize: '12px', padding: '4px 12px', height: 'auto', width: '80px' }}
           >
             添加记录

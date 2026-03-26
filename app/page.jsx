@@ -5001,6 +5001,7 @@ export default function HomePage() {
             fund={historyModal.fund}
             transactions={transactions[historyModal.fund?.code] || []}
             pendingTransactions={pendingTrades.filter(t => t.fundCode === historyModal.fund?.code)}
+            childModalOpen={addHistoryModal.open && addHistoryModal.fund?.code === historyModal.fund?.code}
             onClose={() => {
               const fund = historyModal.fund;
               const shouldReturn = historyModal.returnToActionModal;
