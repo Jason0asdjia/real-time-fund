@@ -119,6 +119,11 @@ const isGithubSession = (user) => {
 const getUserDisplayName = (user) => {
   return user?.user_metadata?.user_name || user?.user_metadata?.preferred_username || user?.email || '用户';
 };
+const formatCurrencyAmount = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '—';
+  return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 function ScanButton({ onClick, disabled }) {
   return (
@@ -909,7 +914,7 @@ export default function HomePage() {
         const profit = getHoldingProfit(f, holding);
         const amount = profit ? profit.amount : null;
         const holdingAmount =
-          amount == null ? '未设置' : `¥${amount.toFixed(2)}`;
+          amount == null ? '未设置' : `¥${formatCurrencyAmount(amount)}`;
         const holdingAmountValue = amount;
         const holdingDaysValue = holding?.firstPurchaseDate
           ? dayjs.tz(todayStr, TZ).diff(dayjs.tz(holding.firstPurchaseDate, TZ), 'day')

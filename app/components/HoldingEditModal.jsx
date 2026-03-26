@@ -17,6 +17,35 @@ dayjs.extend(timezone);
 
 const TZ = 'Asia/Shanghai';
 dayjs.tz.setDefault(TZ);
+const DECIMAL_INPUT_REGEX = /^-?\d*\.?\d*$/;
+const SHARE_FRACTION_DIGITS = 8;
+const COST_FRACTION_DIGITS = 8;
+const AMOUNT_FRACTION_DIGITS = 2;
+const PROFIT_FRACTION_DIGITS = 2;
+
+function sanitizeDecimalInput(value, { allowNegative = false, maxIntegerDigits = 9, maxFractionDigits = 8 } = {}) {
+  const raw = String(value ?? '').replace(/[^\d.-]/g, '');
+  if (!raw) return '';
+
+  let normalized = raw;
+  if (!allowNegative) {
+    normalized = normalized.replace(/-/g, '');
+  } else {
+    normalized = normalized.startsWith('-') ? `-${normalized.slice(1).replace(/-/g, '')}` : normalized.replace(/-/g, '');
+  }
+
+  if (!DECIMAL_INPUT_REGEX.test(normalized)) return '';
+
+  const negative = allowNegative && normalized.startsWith('-');
+  const unsigned = negative ? normalized.slice(1) : normalized;
+  const [integerPartRaw = '', fractionPartRaw = ''] = unsigned.split('.');
+  const integerPart = integerPartRaw.slice(0, maxIntegerDigits);
+  const fractionPart = fractionPartRaw.slice(0, maxFractionDigits);
+  const hasDot = unsigned.includes('.');
+  const result = `${negative ? '-' : ''}${integerPart}${hasDot ? '.' : ''}${fractionPart}`;
+
+  return result === '-' ? '' : result;
+}
 
 export default function HoldingEditModal({ fund, holding, onClose, onSave, onOpenTrade }) {
   const [mode, setMode] = useState('amount'); // 'amount' | 'share'
@@ -44,8 +73,8 @@ export default function HoldingEditModal({ fund, holding, onClose, onSave, onOpe
     if (holding) {
       const s = holding.share || 0;
       const c = holding.cost || 0;
-      setShare(String(s));
-      setCost(String(c));
+      setShare(sanitizeDecimalInput(String(s), { maxFractionDigits: SHARE_FRACTION_DIGITS }));
+      setCost(sanitizeDecimalInput(String(c), { maxFractionDigits: COST_FRACTION_DIGITS }));
       setFirstPurchaseDate(holding.firstPurchaseDate || '');
 
       if (holding.firstPurchaseDate) {
@@ -59,8 +88,8 @@ export default function HoldingEditModal({ fund, holding, onClose, onSave, onOpe
       if (price > 0) {
         const a = s * price;
         const p = (price - c) * s;
-        setAmount(a.toFixed(2));
-        setProfit(p.toFixed(2));
+        setAmount(sanitizeDecimalInput(a.toFixed(AMOUNT_FRACTION_DIGITS), { maxFractionDigits: AMOUNT_FRACTION_DIGITS }));
+        setProfit(sanitizeDecimalInput(p.toFixed(PROFIT_FRACTION_DIGITS), { allowNegative: true, maxFractionDigits: PROFIT_FRACTION_DIGITS }));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -78,8 +107,8 @@ export default function HoldingEditModal({ fund, holding, onClose, onSave, onOpe
         const principal = a - p;
         const c = s > 0 ? principal / s : 0;
 
-        setShare(s.toFixed(2));
-        setCost(c.toFixed(4));
+        setShare(sanitizeDecimalInput(String(s), { maxFractionDigits: SHARE_FRACTION_DIGITS }));
+        setCost(sanitizeDecimalInput(String(c), { maxFractionDigits: COST_FRACTION_DIGITS }));
       }
     } else {
       if (share && dwjz > 0) {
@@ -88,8 +117,8 @@ export default function HoldingEditModal({ fund, holding, onClose, onSave, onOpe
         const a = s * dwjz;
         const p = (dwjz - c) * s;
 
-        setAmount(a.toFixed(2));
-        setProfit(p.toFixed(2));
+        setAmount(sanitizeDecimalInput(a.toFixed(AMOUNT_FRACTION_DIGITS), { maxFractionDigits: AMOUNT_FRACTION_DIGITS }));
+        setProfit(sanitizeDecimalInput(p.toFixed(PROFIT_FRACTION_DIGITS), { allowNegative: true, maxFractionDigits: PROFIT_FRACTION_DIGITS }));
       }
     }
   };
@@ -137,14 +166,14 @@ export default function HoldingEditModal({ fund, holding, onClose, onSave, onOpe
 
     if (mode === 'share') {
       if (!share || !cost) return;
-      finalShare = Number(Number(share).toFixed(2));
+      finalShare = Number(share);
       finalCost = Number(cost);
     } else {
       if (!amount || !dwjz) return;
       const a = Number(amount);
       const p = Number(profit || 0);
       const rawShare = a / dwjz;
-      finalShare = Number(rawShare.toFixed(2));
+      finalShare = rawShare;
       const principal = a - p;
       finalCost = finalShare > 0 ? principal / finalShare : 0;
     }
@@ -244,12 +273,11 @@ export default function HoldingEditModal({ fund, holding, onClose, onSave, onOpe
                   持有金额 <span style={{ color: 'var(--danger)' }}>*</span>
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="any"
                   className={`input ${!amount ? 'error' : ''}`}
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value, { maxFractionDigits: AMOUNT_FRACTION_DIGITS }))}
                   placeholder="请输入持有总金额"
                   style={{
                     width: '100%',
@@ -262,11 +290,11 @@ export default function HoldingEditModal({ fund, holding, onClose, onSave, onOpe
                   持有收益
                 </label>
                 <input
-                  type="number"
-                  step="any"
+                  type="text"
+                  inputMode="decimal"
                   className="input"
                   value={profit}
-                  onChange={(e) => setProfit(e.target.value)}
+                  onChange={(e) => setProfit(sanitizeDecimalInput(e.target.value, { allowNegative: true, maxFractionDigits: PROFIT_FRACTION_DIGITS }))}
                   placeholder="请输入持有总收益 (可为负)"
                   style={{ width: '100%' }}
                 />
@@ -279,12 +307,11 @@ export default function HoldingEditModal({ fund, holding, onClose, onSave, onOpe
                   持有份额 <span style={{ color: 'var(--danger)' }}>*</span>
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="any"
                   className={`input ${!share ? 'error' : ''}`}
                   value={share}
-                  onChange={(e) => setShare(e.target.value)}
+                  onChange={(e) => setShare(sanitizeDecimalInput(e.target.value, { maxFractionDigits: SHARE_FRACTION_DIGITS }))}
                   placeholder="请输入持有份额"
                   style={{
                     width: '100%',
@@ -297,12 +324,11 @@ export default function HoldingEditModal({ fund, holding, onClose, onSave, onOpe
                   持仓成本价 <span style={{ color: 'var(--danger)' }}>*</span>
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="any"
                   className={`input ${!cost ? 'error' : ''}`}
                   value={cost}
-                  onChange={(e) => setCost(e.target.value)}
+                  onChange={(e) => setCost(sanitizeDecimalInput(e.target.value, { maxFractionDigits: COST_FRACTION_DIGITS }))}
                   placeholder="请输入持仓成本价"
                   style={{
                     width: '100%',

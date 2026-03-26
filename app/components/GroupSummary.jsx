@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo, useLayoutEffect } from 'react';
 import { PinIcon, PinOffIcon, EyeIcon, EyeOffIcon, SwitchIcon } from './Icons';
+import FitText from './FitText';
 
 // 数字滚动组件（初始化时无动画，后续变更再动画）
 function CountUp({ value, prefix = '', suffix = '', decimals = 2, className = '', style = {} }) {
@@ -59,6 +60,28 @@ function CountUp({ value, prefix = '', suffix = '', decimals = 2, className = ''
       {Math.abs(displayValue).toFixed(decimals)}
       {suffix}
     </span>
+  );
+}
+
+function AutoFitCountUp({ value, prefix = '', suffix = '', decimals = 2, maxFontSize, minFontSize, className = '', style = {} }) {
+  return (
+    <FitText
+      as="div"
+      className={className}
+      maxFontSize={maxFontSize}
+      minFontSize={minFontSize}
+      style={{
+        lineHeight: 1.1,
+        whiteSpace: 'nowrap',
+        width: '100%',
+        maxWidth: '100%',
+        ...style,
+      }}
+    >
+      {prefix}
+      {Math.abs(value).toFixed(decimals)}
+      {suffix}
+    </FitText>
   );
 }
 
@@ -258,11 +281,15 @@ export default function GroupSummary({
             <div className="group-summary-mobile-metric group-summary-mobile-metric-main">
               <div className="group-summary-mobile-label">{mobileInline ? '全部资产' : '总资产'}</div>
               <div className="group-summary-mobile-value group-summary-mobile-asset">
-                <span style={{ fontSize: '13px', marginRight: 2 }}>¥</span>
                 {isMasked ? (
                   <span className="mask-text">******</span>
                 ) : (
-                  <CountUp value={summary.totalAsset} style={{ fontSize: assetSize }} />
+                  <AutoFitCountUp
+                    value={summary.totalAsset}
+                    prefix="¥"
+                    maxFontSize={mobileInline ? Math.min(assetSize, 18) : assetSize}
+                    minFontSize={mobileInline ? 3 : 6}
+                  />
                 )}
               </div>
             </div>
@@ -291,27 +318,19 @@ export default function GroupSummary({
                 {isMasked ? (
                   <span className="mask-text">******</span>
                 ) : summary.hasAnyTodayData ? (
-                  <>
-                    <span style={{ marginRight: 1 }}>
-                      {summary.totalProfitToday > 0
+                  <AutoFitCountUp
+                    value={showTodayPercent ? summary.todayReturnRate : summary.totalProfitToday}
+                    prefix={
+                      summary.totalProfitToday > 0
                         ? '+'
                         : summary.totalProfitToday < 0
-                        ? '-'
-                          : ''}
-                    </span>
-                    {showTodayPercent ? (
-                      <CountUp
-                        value={Math.abs(summary.todayReturnRate)}
-                        suffix="%"
-                        style={{ fontSize: metricSize }}
-                      />
-                    ) : (
-                      <CountUp
-                        value={Math.abs(summary.totalProfitToday)}
-                        style={{ fontSize: metricSize }}
-                      />
-                    )}
-                  </>
+                          ? '-'
+                          : ''
+                    }
+                    suffix={showTodayPercent ? '%' : ''}
+                    maxFontSize={mobileInline ? Math.min(metricSize, 14) : metricSize}
+                    minFontSize={mobileInline ? 4 : 6}
+                  />
                 ) : (
                   '--'
                 )}
@@ -340,27 +359,19 @@ export default function GroupSummary({
                 {isMasked ? (
                   <span className="mask-text">******</span>
                 ) : (
-                  <>
-                    <span style={{ marginRight: 1 }}>
-                      {summary.totalHoldingReturn > 0
+                  <AutoFitCountUp
+                    value={showPercent ? summary.returnRate : summary.totalHoldingReturn}
+                    prefix={
+                      summary.totalHoldingReturn > 0
                         ? '+'
                         : summary.totalHoldingReturn < 0
                           ? '-'
-                          : ''}
-                    </span>
-                    {showPercent ? (
-                      <CountUp
-                        value={Math.abs(summary.returnRate)}
-                        suffix="%"
-                        style={{ fontSize: metricSize }}
-                      />
-                    ) : (
-                      <CountUp
-                        value={Math.abs(summary.totalHoldingReturn)}
-                        style={{ fontSize: metricSize }}
-                      />
-                    )}
-                  </>
+                          : ''
+                    }
+                    suffix={showPercent ? '%' : ''}
+                    maxFontSize={mobileInline ? Math.min(metricSize, 14) : metricSize}
+                    minFontSize={mobileInline ? 4 : 6}
+                  />
                 )}
               </div>
             </button>

@@ -402,6 +402,7 @@ export default function MobileFundTable({
 
     const handleScroll = () => {
       setIsScrolled(tableEl.scrollLeft > 0);
+
       if (scrollSyncRef?.current) {
         scrollSyncRef.current.scrollLeft = tableEl.scrollLeft;
       }
@@ -644,11 +645,15 @@ export default function MobileFundTable({
           </span>
           {holdingAmountDisplay ? (
             <span
-              className="muted code-text"
+              className={`code-text ${isUpdated ? 'holding-amount-updated' : 'muted'}`}
               role="button"
               tabIndex={0}
               title="点击设置持仓"
-              style={{ cursor: 'pointer' }}
+              style={{
+                cursor: 'pointer',
+                color: isUpdated ? 'var(--primary)' : undefined,
+                fontWeight: isUpdated ? 600 : undefined,
+              }}
               onClick={(e) => {
                 e.stopPropagation?.();
                 onHoldingAmountClickRef.current?.(original, { hasHolding: true });
@@ -662,7 +667,6 @@ export default function MobileFundTable({
             >
               {masked ? <span className="mask-text">******</span> : holdingAmountDisplay}
               {hasDca && <span className="dca-indicator">定</span>}
-              {isUpdated && <span className="updated-indicator">✓</span>}
             </span>
           ) : code ? (
             <span
@@ -684,7 +688,6 @@ export default function MobileFundTable({
             >
               #{code}
               {hasDca && <span className="dca-indicator">定</span>}
-              {isUpdated && <span className="updated-indicator">✓</span>}
             </span>
           ) : null}
         </div>
@@ -884,13 +887,13 @@ export default function MobileFundTable({
           return (
             <div style={{ width: '100%' }}>
               <span className={cls} style={{ display: 'block', width: '100%', fontWeight: 600 }}>
-                <FitText maxFontSize={12} minFontSize={9}>
+                <FitText maxFontSize={12} minFontSize={6}>
                   {masked && hasProfit ? <span className="mask-text">******</span> : amountStr}
                 </FitText>
               </span>
               {hasProfit && percentStr && !masked ? (
                 <span className={`${cls} estimate-profit-percent`} style={{ display: 'block', width: '100%', fontSize: '0.7em', opacity: 0.88, fontWeight: 500 }}>
-                  <FitText maxFontSize={10} minFontSize={8}>
+                  <FitText maxFontSize={10} minFontSize={6}>
                     {percentStr}
                   </FitText>
                 </span>
@@ -930,13 +933,13 @@ export default function MobileFundTable({
           return (
             <div style={{ width: '100%' }}>
               <span className={cls} style={{ display: 'block', width: '100%', fontWeight: 600 }}>
-                <FitText maxFontSize={12} minFontSize={9}>
+                <FitText maxFontSize={12} minFontSize={6}>
                   {masked && hasProfit ? <span className="mask-text">******</span> : amountStr}
                 </FitText>
               </span>
               {percentStr && !masked ? (
                 <span className={`${cls} today-profit-percent`} style={{ display: 'block', width: '100%', fontSize: '0.7em', opacity: 0.88, fontWeight: 500 }}>
-                  <FitText maxFontSize={10} minFontSize={8}>
+                  <FitText maxFontSize={10} minFontSize={6}>
                     {percentStr}
                   </FitText>
                 </span>
@@ -959,13 +962,13 @@ export default function MobileFundTable({
           return (
             <div style={{ width: '100%' }}>
               <span className={cls} style={{ display: 'block', width: '100%', fontWeight: 600 }}>
-                <FitText maxFontSize={12} minFontSize={9}>
+                <FitText maxFontSize={12} minFontSize={6}>
                   {masked && hasTotal ? <span className="mask-text">******</span> : amountStr}
                 </FitText>
               </span>
               {percentStr && !masked ? (
                 <span className={`${cls} holding-profit-percent`} style={{ display: 'block', width: '100%', fontSize: '0.7em', opacity: 0.88, fontWeight: 500 }}>
-                  <FitText maxFontSize={10} minFontSize={8}>
+                  <FitText maxFontSize={10} minFontSize={6}>
                     {percentStr}
                   </FitText>
                 </span>

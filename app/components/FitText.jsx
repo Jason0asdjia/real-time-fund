@@ -32,6 +32,7 @@ export default function FitText({
 
     const containerWidth = container.clientWidth;
     if (containerWidth <= 0) return;
+    const safeWidth = Math.max(containerWidth - 6, 0);
 
     // 先恢复到最大字号再测量，确保在「未缩放」状态下取到真实内容宽度
     content.style.fontSize = `${maxFontSize}px`;
@@ -40,8 +41,8 @@ export default function FitText({
       const contentWidth = content.scrollWidth;
       if (contentWidth <= 0) return;
       let size = maxFontSize;
-      if (contentWidth > containerWidth) {
-        size = (containerWidth / contentWidth) * maxFontSize;
+      if (contentWidth > safeWidth) {
+        size = (safeWidth / contentWidth) * maxFontSize;
         size = Math.max(minFontSize, Math.min(maxFontSize, size));
       }
       content.style.fontSize = `${size}px`;
@@ -67,6 +68,8 @@ export default function FitText({
       style={{
         display: 'block',
         width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
         overflow: 'hidden',
         ...style,
       }}
@@ -78,6 +81,8 @@ export default function FitText({
           whiteSpace: 'nowrap',
           fontWeight: 'inherit',
           fontSize: `${maxFontSize}px`,
+          maxWidth: 'none',
+          width: 'max-content',
         }}
       >
         {children}
