@@ -185,15 +185,6 @@ export default function MarketSettingModal({
     if (!open) setResetConfirmOpen(false);
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: isMobile
@@ -378,6 +369,7 @@ export default function MarketSettingModal({
     return (
       <Dialog
         open={open}
+        modal={false}
         onOpenChange={(v) => {
           if (!v) onClose?.();
         }}

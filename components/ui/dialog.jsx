@@ -5,20 +5,140 @@ import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 import {CloseIcon} from "@/app/components/Icons";
-import { useBodyScrollLock } from "../../app/hooks/useBodyScrollLock";
+
+let inertLockCount = 0
+let originalAppRootPointerEvents = ""
+let scrollBlockLockCount = 0
+let removeScrollBlockListeners = null
+
+function isScrollableElement(node) {
+  if (!(node instanceof HTMLElement)) return false
+  const style = window.getComputedStyle(node)
+  const overflowY = style.overflowY
+  const canScrollY =
+    (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") &&
+    node.scrollHeight > node.clientHeight
+  return canScrollY
+}
+
+function canScrollWithinContent(target, deltaY) {
+  if (!(target instanceof HTMLElement)) return false
+  const contentEl = target.closest('[data-slot="dialog-content"]')
+  if (!(contentEl instanceof HTMLElement)) return false
+
+  let el = target
+  while (el instanceof HTMLElement) {
+    if (isScrollableElement(el)) {
+      if (deltaY < 0 && el.scrollTop > 0) return true
+      if (deltaY > 0 && el.scrollTop + el.clientHeight < el.scrollHeight) return true
+      if (deltaY === 0 && el.scrollHeight > el.clientHeight) return true
+    }
+    if (el === contentEl) break
+    el = el.parentElement
+  }
+  return false
+}
+
+function installScrollBlockListeners() {
+  if (typeof document === "undefined") return () => {}
+
+  const handleWheel = (e) => {
+    if (canScrollWithinContent(e.target, e.deltaY || 0)) return
+    e.preventDefault()
+  }
+
+  let lastTouchY = null
+  const handleTouchStart = (e) => {
+    const touch = e.touches?.[0]
+    lastTouchY = touch ? touch.clientY : null
+  }
+
+  const handleTouchMove = (e) => {
+    const touch = e.touches?.[0]
+    const currentY = touch ? touch.clientY : null
+    const deltaY = lastTouchY == null || currentY == null ? 0 : lastTouchY - currentY
+    if (canScrollWithinContent(e.target, deltaY)) {
+      lastTouchY = currentY
+      return
+    }
+    e.preventDefault()
+  }
+
+  document.addEventListener("wheel", handleWheel, { passive: false, capture: true })
+  document.addEventListener("touchstart", handleTouchStart, { passive: true, capture: true })
+  document.addEventListener("touchmove", handleTouchMove, { passive: false, capture: true })
+
+  return () => {
+    document.removeEventListener("wheel", handleWheel, true)
+    document.removeEventListener("touchstart", handleTouchStart, true)
+    document.removeEventListener("touchmove", handleTouchMove, true)
+  }
+}
+
+function setDocumentScrollBlocked(active) {
+  if (active) {
+    scrollBlockLockCount += 1
+    if (scrollBlockLockCount === 1) {
+      removeScrollBlockListeners = installScrollBlockListeners()
+    }
+    return
+  }
+
+  if (scrollBlockLockCount === 0) return
+  scrollBlockLockCount -= 1
+  if (scrollBlockLockCount === 0) {
+    removeScrollBlockListeners?.()
+    removeScrollBlockListeners = null
+  }
+}
+
+function setAppRootInert(active) {
+  if (typeof document === "undefined") return
+  const appRoot = document.getElementById("app-root")
+  if (!appRoot) return
+
+  if (active) {
+    inertLockCount += 1
+    if (inertLockCount === 1) {
+      originalAppRootPointerEvents = appRoot.style.pointerEvents || ""
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur()
+      }
+      appRoot.setAttribute("inert", "")
+      appRoot.style.pointerEvents = "none"
+    }
+    return
+  }
+
+  if (inertLockCount === 0) return
+  inertLockCount -= 1
+  if (inertLockCount === 0) {
+    appRoot.removeAttribute("inert")
+    appRoot.style.pointerEvents = originalAppRootPointerEvents
+  }
+}
 
 function Dialog({
   open: openProp,
   defaultOpen,
   onOpenChange,
+  modal = false,
+  blockAppInteraction = true,
   ...props
 }) {
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen ?? false);
   const isControlled = openProp !== undefined;
   const currentOpen = isControlled ? openProp : uncontrolledOpen;
 
-  // 使用全局 hook 统一处理 body 滚动锁定 & 恢复，避免弹窗打开时页面跳到顶部
-  useBodyScrollLock(currentOpen);
+  React.useEffect(() => {
+    if (!blockAppInteraction || !currentOpen) return undefined
+    setAppRootInert(true)
+    setDocumentScrollBlocked(true)
+    return () => {
+      setAppRootInert(false)
+      setDocumentScrollBlocked(false)
+    }
+  }, [blockAppInteraction, currentOpen])
 
   const handleOpenChange = React.useCallback(
     (next) => {
@@ -31,6 +151,7 @@ function Dialog({
   return (
     <DialogPrimitive.Root
       data-slot="dialog"
+      modal={modal}
       open={isControlled ? openProp : undefined}
       defaultOpen={defaultOpen}
       onOpenChange={handleOpenChange}
@@ -62,13 +183,19 @@ function DialogOverlay({
   ...props
 }) {
   return (
-    <DialogPrimitive.Overlay
-      data-slot="dialog-overlay"
-      className={cn(
-        "fixed inset-0 z-50 bg-[var(--dialog-overlay)] backdrop-blur-[4px] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
-        className
-      )}
-      {...props} />
+    <DialogPrimitive.Close asChild>
+      <div
+        data-slot="dialog-overlay"
+        role="button"
+        tabIndex={-1}
+        aria-label="关闭"
+        className={cn(
+          "fixed inset-0 z-50 cursor-default bg-[var(--dialog-overlay)] backdrop-blur-[4px] animate-in fade-in-0",
+          className
+        )}
+        {...props}
+      />
+    </DialogPrimitive.Close>
   );
 }
 
@@ -80,11 +207,14 @@ function DialogContent({
   overlayStyle,
   ...props
 }) {
+  const describedBy = props["aria-describedby"]
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay className={overlayClassName} style={overlayStyle} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        aria-modal="true"
+        aria-describedby={describedBy ?? undefined}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
         className={cn(

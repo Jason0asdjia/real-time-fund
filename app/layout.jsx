@@ -18,6 +18,7 @@ export default function RootLayout({ children }) {
     <head>
       <meta name="apple-mobile-web-app-title" content="基估宝" />
       <meta name="apple-mobile-web-app-capable" content="yes"/>
+      <meta name="mobile-web-app-capable" content="yes" />
       <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
       <link rel="apple-touch-icon" href="/Icon-60@3x.png?v=1"/>
       <link rel="apple-touch-icon" sizes="180x180" href="/Icon-60@3x.png?v=1"/>
@@ -36,7 +37,9 @@ export default function RootLayout({ children }) {
       <ThemeColorSync />
       <PwaRegister />
       <AnalyticsGate GA_ID={GA_ID} />
-      {children}
+      <div id="app-root">
+        {children}
+      </div>
       <Toaster />
     </body>
     </html>
