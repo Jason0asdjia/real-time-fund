@@ -86,18 +86,11 @@ dayjs.extend(timezone);
 dayjs.extend(isSameOrAfter);
 
 const DEFAULT_TZ = 'Asia/Shanghai';
-const getBrowserTimeZone = () => {
-  if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    return tz || DEFAULT_TZ;
-  }
-  return DEFAULT_TZ;
-};
-const TZ = getBrowserTimeZone();
+const TZ = DEFAULT_TZ;
 dayjs.tz.setDefault(TZ);
 const nowInTz = () => dayjs().tz(TZ);
-const nowInMarketTz = () => dayjs().tz(DEFAULT_TZ);
 const toTz = (input) => (input ? dayjs.tz(input, TZ) : nowInTz());
+const MARKET_ESTIMATE_START_MINUTES = 9 * 60 + 15;
 const formatDate = (input) => toTz(input).format('YYYY-MM-DD');
 const ALLOWED_GITHUB_LOGIN = (process.env.NEXT_PUBLIC_ALLOWED_GITHUB_LOGIN || '').trim().toLowerCase();
 const getGithubLogin = (user) => {
@@ -604,7 +597,7 @@ export default function HomePage() {
 
   // 检查交易日状态
   const checkTradingDay = async () => {
-    const now = nowInMarketTz();
+    const now = nowInTz();
     const isWeekend = now.day() === 0 || now.day() === 6;
 
     // 周末直接判定为非交易日
@@ -627,7 +620,7 @@ export default function HomePage() {
         setIsTradingDay(true);
       } else {
         const minutes = now.hour() * 60 + now.minute();
-        if (minutes >= 9 * 60 + 30) {
+        if (minutes >= MARKET_ESTIMATE_START_MINUTES) {
           setIsTradingDay(false);
         } else {
           setIsTradingDay(true);
@@ -649,9 +642,9 @@ export default function HomePage() {
   const getHoldingProfit = useCallback((fund, holding) => {
     if (!holding || !isNumber(holding.share)) return null;
 
-    const now = nowInMarketTz();
+    const now = nowInTz();
     const minutes = now.hour() * 60 + now.minute();
-    const hasEnteredTodayOpen = isTradingDay && minutes >= 9 * 60 + 30;
+    const hasEnteredTodayOpen = isTradingDay && minutes >= MARKET_ESTIMATE_START_MINUTES;
     const hasTodayData = fund.jzrq === todayStr;
     const hasTodayValuation = isString(fund.gztime) && fund.gztime.startsWith(todayStr);
     const hasCurrentSessionProfit = hasTodayData || hasTodayValuation;
@@ -664,8 +657,8 @@ export default function HomePage() {
       hasLatestSessionProfit;
     const canCalcTodayProfit = hasCurrentSessionProfit || shouldCarryForwardTodayProfit;
 
-    // 仅在当日 9:30 开盘后且今日净值未出时，使用实时估值计算当日收益。
-    // 开盘前、休市日与节假日沿用最近一个交易日的当日收益，避免次日清晨直接变成空白。
+    // 仅在中国市场进入 9:15 集合竞价后且今日净值未出时，使用实时估值计算当日收益。
+    // 集合竞价前、休市日与节假日沿用最近一个交易日的当日收益，避免次日清晨直接变成空白。
     const useValuation = hasEnteredTodayOpen && !hasTodayData;
 
     let currentNav;

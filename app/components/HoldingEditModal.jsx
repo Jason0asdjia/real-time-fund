@@ -15,9 +15,8 @@ import {
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const TZ = typeof Intl !== 'undefined' && Intl.DateTimeFormat
-  ? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai')
-  : 'Asia/Shanghai';
+const TZ = 'Asia/Shanghai';
+dayjs.tz.setDefault(TZ);
 
 export default function HoldingEditModal({ fund, holding, onClose, onSave, onOpenTrade }) {
   const [mode, setMode] = useState('amount'); // 'amount' | 'share'

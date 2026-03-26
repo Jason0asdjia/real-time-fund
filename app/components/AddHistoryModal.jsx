@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
 import { CloseIcon } from './Icons';
 import { fetchSmartFundNetValue } from '../api/fund';
 import { DatePicker } from './Common';
@@ -11,9 +14,16 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const TZ = 'Asia/Shanghai';
+dayjs.tz.setDefault(TZ);
+const todayInTz = () => dayjs().tz(TZ).format('YYYY-MM-DD');
+
 export default function AddHistoryModal({ fund, onClose, onConfirm }) {
   const [type, setType] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(todayInTz());
   const [amount, setAmount] = useState('');
   const [share, setShare] = useState('');
   const [netValue, setNetValue] = useState(null);
@@ -77,7 +87,7 @@ export default function AddHistoryModal({ fund, onClose, onConfirm }) {
       amount: parseFloat(amount),
       share: parseFloat(share),
       price: netValue,
-      timestamp: new Date(netValueDate).getTime()
+      timestamp: dayjs.tz(netValueDate, TZ).valueOf()
     });
     onClose();
   };

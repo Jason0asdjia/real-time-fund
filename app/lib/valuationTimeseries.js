@@ -2,9 +2,18 @@
  * 记录每次调用基金估值接口的结果，用于分时图。
  * 规则：获取到最新日期的数据时，清掉所有老日期的数据，只保留当日分时点。
  */
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
 import { isPlainObject, isString } from 'lodash';
 
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
 const STORAGE_KEY = 'fundValuationTimeseries';
+const TZ = 'Asia/Shanghai';
+
+const nowInTz = () => dayjs().tz(TZ);
 
 function getStored() {
   if (typeof window === 'undefined' || !window.localStorage) return {};
@@ -34,11 +43,7 @@ function toDateStr(gztimeOrNow) {
     return gztimeOrNow.slice(0, 10);
   }
   try {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+    return nowInTz().format('YYYY-MM-DD');
   } catch {
     return null;
   }
@@ -63,8 +68,7 @@ export function recordValuation(code, payload) {
   const timeLabel = isString(gztime) && gztime.length > 10
     ? gztime.slice(11, 16)
     : (() => {
-        const d = new Date();
-        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        return nowInTz().format('HH:mm');
       })();
 
   const newPoint = { time: timeLabel, value, date: dateStr };

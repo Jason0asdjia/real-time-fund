@@ -17,14 +17,7 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const DEFAULT_TZ = 'Asia/Shanghai';
-const getBrowserTimeZone = () => {
-  if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    return tz || DEFAULT_TZ;
-  }
-  return DEFAULT_TZ;
-};
-const TZ = getBrowserTimeZone();
+const TZ = DEFAULT_TZ;
 dayjs.tz.setDefault(TZ);
 const nowInTz = () => dayjs().tz(TZ);
 const formatDate = (input) => dayjs.tz(input, TZ).format('YYYY-MM-DD');
