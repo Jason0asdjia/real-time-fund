@@ -535,6 +535,16 @@ export default function HomePage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!isMobile || typeof window === 'undefined') return;
+    try {
+      const savedViewMode = window.localStorage.getItem('viewMode');
+      if (savedViewMode === 'card' || savedViewMode === 'list') return;
+      setViewMode('list');
+      window.localStorage.setItem('viewMode', 'list');
+    } catch { }
+  }, [isMobile]);
+
   const shouldShowMarketIndex = isMobile ? showMarketIndexMobile : showMarketIndexPc;
 
   // 当关闭大盘指数时，重置它的高度，避免 top/stickyTop 仍沿用旧值
@@ -2365,6 +2375,9 @@ export default function HomePage() {
       const savedViewMode = localStorage.getItem('viewMode');
       if (savedViewMode === 'card' || savedViewMode === 'list') {
         setViewMode(savedViewMode);
+      } else if (window.innerWidth <= 768) {
+        setViewMode('list');
+        localStorage.setItem('viewMode', 'list');
       }
       const savedTheme = localStorage.getItem('theme');
       if (savedTheme === 'light' || savedTheme === 'dark') {

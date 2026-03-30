@@ -2,7 +2,7 @@
 
 一个基于 Next.js 开发的基金估值与重仓股实时追踪工具。采用玻璃拟态设计（Glassmorphism），支持移动端适配。
 预览地址：  
-1. [https://hzm0321.github.io/real-time-fund/](https://hzm0321.github.io/real-time-fund/)
+1. [https://fund.v7yo.cn/](https://fund.v7yo.cn/)
 2. [https://fund.cc.cd/](https://fund.cc.cd/) （加速国内访问）
 
 ## Star History
@@ -117,7 +117,7 @@
    - 访问 GitHub → Settings → Developer settings → OAuth Apps → New OAuth App
    - 填写信息：
      - Application name：自定义应用名称
-     - Homepage URL：你的应用地址（如 `https://hzm0321.github.io/real-time-fund/`）
+     - Homepage URL：你的应用地址（如 `https://fund.v7yo.cn/`）
      - Authorization callback URL：`https://<your-supabase-project-id>.supabase.co/auth/v1/callback`
    - 创建后获取 **Client ID** 和 **Client Secret**
 
@@ -129,8 +129,8 @@
 
    **第三步：配置站点 URL（重要）**
    - Supabase控制台 → Authentication → URL Configuration
-   - **Site URL**：设置为你的应用主域名（如 `https://hzm0321.github.io/`）
-   - **Redirect URLs**：添加你的应用完整路径（如 `https://hzm0321.github.io/real-time-fund/`）
+   - **Site URL**：设置为你的应用主域名（如 `https://fund.v7yo.cn/`）
+   - **Redirect URLs**：添加你的应用完整路径（如 `https://fund.v7yo.cn/`）
 
    配置完成后，用户即可通过 GitHub 账号一键登录。
 
@@ -172,7 +172,7 @@
 
 若使用自定义域名，可在 `public/CNAME` 中写入你的域名，例如：
 ```txt
-v7yo.de
+fund.v7yo.cn
 ```
 部署完成后，再到 GitHub Pages 设置中绑定相同域名并配置 DNS。
 
