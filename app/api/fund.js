@@ -366,16 +366,20 @@ export const fetchFundDataFallback = async (c) => {
     } catch (e) {
     }
     try {
-      const url = `https://fundf10.eastmoney.com/F10DataApi.aspx?type=lsjz&code=${c}&page=1&per=1&sdate=&edate=`;
+      // fallback 同样取最近两天净值，以补齐 lastNav（用于更精确的当日收益计算）
+      const url = `https://fundf10.eastmoney.com/F10DataApi.aspx?type=lsjz&code=${c}&page=1&per=2&sdate=&edate=`;
       const apidata = await loadScript(url);
       const content = apidata?.content || '';
-      const latest = parseLatestNetValueFromLsjzContent(content);
+      const navList = parseNetValuesFromLsjzContent(content);
+      const latest = navList.length > 0 ? navList[navList.length - 1] : null;
+      const previousNav = navList.length > 1 ? navList[navList.length - 2] : null;
       if (latest && latest.nav) {
         const name = fundName || `未知基金(${c})`;
         resolve({
           code: c,
           name,
           dwjz: String(latest.nav),
+          lastNav: previousNav ? String(previousNav.nav) : null,
           gsz: null,
           gztime: null,
           jzrq: latest.date,
@@ -1012,8 +1016,8 @@ export const fetchFundHistory = async (code, range = '1m') => {
 };
 
 const API_KEYS = [
-  'sk-25b8a4a3d88a49e82e87c981d9d8f6b4',
-  'sk-1565f822d5bd745b6529cfdf28b55574'
+  'sk-c5e4a1d4050c439a694f6f9242f163c7',
+  'sk-8b3b21781fdec7008323f8993e81e0d2'
   // 添加更多 API Key 到这里
 ];
 

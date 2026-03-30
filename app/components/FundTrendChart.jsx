@@ -39,6 +39,18 @@ const CHART_COLORS = {
     border: '#1f2937',
     text: '#e5e7eb',
     crosshairText: '#0f172a',
+    grandLine: [
+      'rgba(34,211,238,0.55)',
+      'rgba(156,163,175,0.55)',
+      'rgba(251,146,60,0.55)',
+      'rgba(229,231,235,0.45)',
+    ],
+    grandLegend: [
+      'rgba(34,211,238,0.55)',
+      'rgba(156,163,175,0.55)',
+      'rgba(251,146,60,0.55)',
+      'rgba(229,231,235,0.45)',
+    ],
   },
   light: {
     danger: '#dc2626',
@@ -48,6 +60,18 @@ const CHART_COLORS = {
     border: '#e2e8f0',
     text: '#0f172a',
     crosshairText: '#ffffff',
+    grandLine: [
+      'rgba(8,145,178,0.5)',
+      'rgba(71,85,105,0.45)',
+      'rgba(249,115,22,0.5)',
+      'rgba(15,23,42,0.35)',
+    ],
+    grandLegend: [
+      'rgba(8,145,178,0.5)',
+      'rgba(71,85,105,0.45)',
+      'rgba(249,115,22,0.5)',
+      'rgba(15,23,42,0.35)',
+    ],
   }
 };
 
@@ -190,20 +214,15 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
 
     // 将 Data_grandTotal 的多条曲线按日期对齐到主 labels 上
     const labels = data.map(d => d.date);
-    // 对比线统一使用固定色板：同类平均延续当前灰色，指数类切到蓝色系
+    const grandColors = chartColors.grandLine;
+    // 隐藏第一条对比线（数据与图示）；第二条用原第一条颜色，第三条用原第二条，顺延
     const visibleGrandSeries = grandTotalSeries.filter((_, idx) => idx > 0);
-    let comparisonColorIndex = 0;
     const grandDatasets = visibleGrandSeries.map((series, displayIdx) => {
+      const color = grandColors[displayIdx % grandColors.length];
       const idx = displayIdx + 1; // 原始索引，用于 hiddenGrandSeries 的 key
       const key = `${series.name || 'series'}_${idx}`;
       const isHidden = hiddenGrandSeries.has(key);
       const pointsByDate = new Map(series.points.map(p => [p.date, p.value]));
-      const isCategoryAverage = typeof series.name === 'string' && series.name.includes('同类平均');
-      const color = resolveGrandSeriesColor(
-        series.name,
-        theme,
-        isCategoryAverage ? 0 : comparisonColorIndex++
-      );
 
       // 方案 2：将对比线同样归一到当前区间首日，展示为“相对本区间首日的累计收益率（百分点变化）”
       let baseValue = null;
@@ -229,7 +248,7 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
         data: seriesData,
         borderColor: color,
         backgroundColor: color,
-        borderWidth: isCategoryAverage ? 1.6 : 1.8,
+        borderWidth: 1,
         pointRadius: 0,
         pointHoverRadius: 4,
         fill: false,
@@ -291,7 +310,7 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
         }
       ]
     };
-  }, [data, transactions, fundFillColors, fundLineColor, primaryColor, upColor, theme, hiddenGrandSeries, percentageData, range]);
+  }, [data, transactions, fundFillColors, fundLineColor, primaryColor, upColor, chartColors, theme, hiddenGrandSeries, percentageData, range]);
 
   const options = useMemo(() => {
     const colors = getChartThemeColors(theme);
@@ -650,11 +669,8 @@ export default function FundTrendChart({ code, isExpanded, onToggleExpand, trans
             .filter((_, idx) => idx > 0)
             .map((series, displayIdx) => {
               const idx = displayIdx + 1;
-              const visibleSeriesBefore = data.grandTotalSeries
-                .filter((_, innerIdx) => innerIdx > 0)
-                .slice(0, displayIdx)
-                .filter(item => !(typeof item?.name === 'string' && item.name.includes('同类平均'))).length;
-              const color = resolveGrandSeriesColor(series.name, theme, visibleSeriesBefore);
+              const legendColors = chartColors.grandLegend;
+              const color = legendColors[displayIdx % legendColors.length];
               const key = `${series.name || 'series'}_${idx}`;
             const isHidden = hiddenGrandSeries.has(key);
             let valueText = '--';
