@@ -93,6 +93,7 @@ export default function TransactionHistoryModal({
             <span>交易记录</span>
           </div>
           <button
+            type="button"
             className="icon-button"
             onClick={handleCloseClick}
             style={{ border: 'none', background: 'transparent' }}
@@ -107,6 +108,7 @@ export default function TransactionHistoryModal({
             <div className="muted" style={{ fontSize: '12px' }}>#{fund?.code}</div>
           </div>
           <button
+            type="button"
             className="button primary"
             onClick={() => {
               suppressParentCloseRef.current = true;
@@ -118,7 +120,7 @@ export default function TransactionHistoryModal({
           </button>
         </div>
 
-        <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
+        <div className="tx-history-scroll" style={{ overflowY: 'auto', flex: 1 }}>
           {/* Pending Transactions */}
           {pendingTransactions.length > 0 && (
             <div style={{ marginBottom: 20 }}>

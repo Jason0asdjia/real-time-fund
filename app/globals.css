@@ -3208,6 +3208,38 @@ input[type="number"] {
   margin-bottom: 8px;
 }
 
+.tx-history-scroll {
+  padding-right: 4px;
+}
+
+.tx-history-modal {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tx-history-modal::-webkit-scrollbar {
+  display: none;
+}
+
+.tx-history-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tx-history-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .tx-history-modal {
+    padding: 10px 6px 10px 10px;
+  }
+
+  .tx-history-scroll {
+    padding-right: 0;
+  }
+}
+
 /* 亮色主题：TransactionHistoryModal */
 [data-theme="light"] .tx-history-modal .tx-history-pending-item {
   background: rgba(217, 119, 6, 0.12);
